@@ -1,4 +1,4 @@
 .idea/
 target/
 .gradle/
-app/build/
+AlarmAppClient/app/build/
