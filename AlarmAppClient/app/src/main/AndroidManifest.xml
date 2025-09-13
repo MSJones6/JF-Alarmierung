@@ -9,7 +9,7 @@
 
     <application
         android:allowBackup="true"
-        android:label="Queue Client"
+        android:label="JF Alarm"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"

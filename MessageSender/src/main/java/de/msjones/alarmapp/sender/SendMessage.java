@@ -11,7 +11,7 @@ public class SendMessage {
     public static void main(String[] args) {
         // ConnectionFactory konfigurieren
         ConnectionFactory factory = new ConnectionFactory();
-        factory.setHost("localhost"); // RabbitMQ-Server-Adresse
+        factory.setHost("192.168.120.130"); // RabbitMQ-Server-Adresse
         factory.setPort(5672);
         factory.setUsername("user"); // Standard-Benutzername
         factory.setPassword("password"); // Standard-Passwort

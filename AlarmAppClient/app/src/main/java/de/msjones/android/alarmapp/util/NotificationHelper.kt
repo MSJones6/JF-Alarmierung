@@ -17,6 +17,7 @@ class NotificationHelper(private val ctx: Context) {
     companion object {
         const val CHANNEL_ID_SERVICE = "conn_status"
         const val CHANNEL_ID_MESSAGES = "incoming_messages"
+        const val SERVICE_CHANNEL_ID = "Alarm"
         const val SERVICE_NOTIFICATION_ID = 1001
         private const val MESSAGE_NOTIFICATION_ID = 2001
     }
@@ -48,7 +49,7 @@ class NotificationHelper(private val ctx: Context) {
         )
         return NotificationCompat.Builder(ctx, CHANNEL_ID_SERVICE)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("Queue Client")
+            .setContentTitle("JF Alarm")
             .setContentText(text)
             .setOngoing(true)
             .setContentIntent(pi)
