@@ -12,71 +12,80 @@ import androidx.core.app.NotificationCompat
 import de.msjones.android.alarmapp.MainActivity
 import de.msjones.android.alarmapp.R
 
-class NotificationHelper(private val ctx: Context) {
+class NotificationHelper(private val context: Context) {
 
     companion object {
-        const val CHANNEL_ID_SERVICE = "conn_status"
-        const val CHANNEL_ID_MESSAGES = "incoming_messages"
-        const val SERVICE_CHANNEL_ID = "Alarm"
         const val SERVICE_NOTIFICATION_ID = 1001
-        private const val MESSAGE_NOTIFICATION_ID = 2001
+        const val CHANNEL_ID = "mqtt_service_channel"
+        const val CHANNEL_NAME = "MQTT Service"
+        const val MESSAGE_CHANNEL_ID = "mqtt_message_channel"
+        const val MESSAGE_CHANNEL_NAME = "MQTT Messages"
     }
 
-    private val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     init {
-        if (Build.VERSION.SDK_INT >= 26) {
-            val service = NotificationChannel(
-                CHANNEL_ID_SERVICE, "Verbindungsstatus",
-                NotificationManager.IMPORTANCE_MIN
+        createNotificationChannels()
+    }
+
+    private fun createNotificationChannels() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val serviceChannel = NotificationChannel(
+                CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_MIN
             )
+            notificationManager.createNotificationChannel(serviceChannel)
+
             val messages = NotificationChannel(
-                CHANNEL_ID_MESSAGES, "Eingehende Nachrichten",
-                NotificationManager.IMPORTANCE_HIGH
+                MESSAGE_CHANNEL_ID, MESSAGE_CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION), null)
                 enableVibration(true)
+                setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION), null)
             }
-            nm.createNotificationChannel(service)
-            nm.createNotificationChannel(messages)
+            notificationManager.createNotificationChannel(messages)
         }
     }
 
-    fun buildServiceNotification(text: String): Notification {
-        val pi = PendingIntent.getActivity(
-            ctx, 0, Intent(ctx, MainActivity::class.java),
+    /** Baut die Foreground-Service-Notification */
+    fun buildServiceNotification(content: String): Notification {
+        val intent = Intent(context, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            context, 0, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        return NotificationCompat.Builder(ctx, CHANNEL_ID_SERVICE)
+        return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("JF Alarm")
-            .setContentText(text)
+            .setContentText(content)
+            .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .setContentIntent(pi)
             .build()
     }
 
-    fun updateServiceNotification(state: String) {
-        nm.notify(SERVICE_NOTIFICATION_ID, buildServiceNotification(state))
+    /** Update Foreground-Service Notification */
+    fun updateServiceNotification(content: String) {
+        val notification = buildServiceNotification(content)
+        notificationManager.notify(SERVICE_NOTIFICATION_ID, notification)
     }
 
+    /** Zeigt eine eingehende Nachricht mit Ton und Popup */
     fun showIncomingMessage(message: String) {
-        val pi = PendingIntent.getActivity(
-            ctx, 0, Intent(ctx, MainActivity::class.java),
+        val intent = Intent(context, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            context, 0, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        val notif = NotificationCompat.Builder(ctx, CHANNEL_ID_MESSAGES)
-            .setSmallIcon(R.mipmap.ic_launcher)
+        val notification = NotificationCompat.Builder(context, MESSAGE_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_alarm_notification_small)
             .setContentTitle("Neue Nachricht")
-            .setContentText(message.take(64))
+            .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setAutoCancel(true)
-            .setContentIntent(pi)
+            .setContentIntent(pendingIntent)
             .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
             .build()
 
-        nm.notify(MESSAGE_NOTIFICATION_ID, notif)
+        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
     }
 }

@@ -1,18 +1,15 @@
 version: '3.8'
 
 services:
-  rabbitmq:
-    image: rabbitmq:3-management
-    container_name: rabbitmq
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: unless-stopped
     ports:
-      - "5672:5672"    # Standard AMQP Port
-      - "15672:15672"  # Management UI Port
-    environment:
-      RABBITMQ_DEFAULT_USER: user
-      RABBITMQ_DEFAULT_PASS: password
+      - "1883:1883"   # MQTT (für Clients, z.B. Smartphones)
+      - "9001:9001"   # WebSocket (optional, für Browser-Clients)
     volumes:
-      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
-      - rabbitmq_data:/var/lib/rabbitmq
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
 
-volumes:
-  rabbitmq_data:
