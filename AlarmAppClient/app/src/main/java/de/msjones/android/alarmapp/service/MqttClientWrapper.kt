@@ -6,7 +6,10 @@ import com.hivemq.client.mqtt.MqttClient
 import com.hivemq.client.mqtt.datatypes.MqttQos
 import com.hivemq.client.mqtt.mqtt3.Mqtt3AsyncClient
 import com.hivemq.client.mqtt.mqtt3.message.publish.Mqtt3Publish
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.future.await
+import kotlinx.coroutines.launch
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -28,7 +31,7 @@ class MqttClientWrapper(
         try {
             client = MqttClient.builder()
                 .useMqttVersion3()
-                .identifier(clientId)
+//                .identifier(clientId)
                 .serverHost(serverUri.substringAfter("tcp://").substringBefore(":"))
                 .serverPort(serverUri.substringAfterLast(":").toInt())
                 .buildAsync()
@@ -63,10 +66,10 @@ class MqttClientWrapper(
 //            }
 
             client?.connectWith()
-                ?.simpleAuth()
-                ?.username(user)
-                ?.password(pass.toByteArray())
-                ?.applySimpleAuth()
+//                ?.simpleAuth()
+//                ?.username(user)
+//                ?.password(pass.toByteArray())
+//                ?.applySimpleAuth()
                 ?.send()
 
             isConnected.set(true)
@@ -95,7 +98,11 @@ class MqttClientWrapper(
                         .orElse(ByteArray(0))
 
                     val message = String(payloadBytes, StandardCharsets.UTF_8)
-                    onMessage(message)
+
+                    // Callback an MessagingService auf MainThread
+                    CoroutineScope(Dispatchers.Main).launch {
+                        onMessage(message)
+                    }
                 }
                 ?.send()
             onState("Abonniert: $topic")
