@@ -1,6 +1,4 @@
 plugins {
-    //id("com.android.application")
-    //kotlin("android")
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
@@ -37,6 +35,15 @@ android {
     //composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+
+    packaging {
+        resources {
+            excludes += listOf(
+                "META-INF/INDEX.LIST",
+                "META-INF/io.netty.versions.properties"
+            )
+        }
+    }
 }
 
 dependencies {
@@ -56,7 +63,10 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
-    implementation("com.rabbitmq:amqp-client:5.22.0")
+    implementation("com.google.accompanist:accompanist-systemuicontroller:0.36.0") // Version prüfen
+    implementation("com.hivemq:hivemq-mqtt-client:1.3.9")
     implementation(libs.androidx.appcompat)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+
+    implementation("com.google.android.material:material:1.10.0")
 }

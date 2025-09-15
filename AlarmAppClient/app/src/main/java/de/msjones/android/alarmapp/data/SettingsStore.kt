@@ -13,10 +13,10 @@ private val Context.dataStore by preferencesDataStore("settings")
 
 data class ServerSettings(
     val host: String = "",
-    val port: Int = 5672,
+    val port: Int = 1883,
     val username: String = "",
     val password: String = "",
-    val queue: String = "mobile_notifications"
+    val topic: String = "JF/Alarm"
 )
 
 object SettingsKeys {
@@ -24,7 +24,7 @@ object SettingsKeys {
     val PORT = intPreferencesKey("port")
     val USER = stringPreferencesKey("user")
     val PASS = stringPreferencesKey("pass")
-    val QUEUE = stringPreferencesKey("queue")
+    val TOPIC = stringPreferencesKey("topic")
 }
 
 class SettingsStore(private val context: Context) {
@@ -32,10 +32,10 @@ class SettingsStore(private val context: Context) {
     val flow: Flow<ServerSettings> = context.dataStore.data.map { prefs: Preferences ->
         ServerSettings(
             host = prefs[SettingsKeys.HOST] ?: "",
-            port = prefs[SettingsKeys.PORT] ?: 5672,
+            port = prefs[SettingsKeys.PORT] ?: 1883,
             username = prefs[SettingsKeys.USER] ?: "",
             password = prefs[SettingsKeys.PASS] ?: "",
-            queue = prefs[SettingsKeys.QUEUE] ?: "mobile_notifications"
+            topic = prefs[SettingsKeys.TOPIC] ?: ""
         )
     }
 
@@ -45,7 +45,7 @@ class SettingsStore(private val context: Context) {
             e[SettingsKeys.PORT] = s.port
             e[SettingsKeys.USER] = s.username
             e[SettingsKeys.PASS] = s.password
-            e[SettingsKeys.QUEUE] = s.queue
+            e[SettingsKeys.TOPIC] = s.topic
         }
     }
 }

@@ -2,3 +2,6 @@
 target/
 .gradle/
 AlarmAppClient/app/build/
+mosquitto.db
+mosquitto.log
+
