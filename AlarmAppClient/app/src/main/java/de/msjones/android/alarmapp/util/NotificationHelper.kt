@@ -6,9 +6,10 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.media.RingtoneManager
+import android.media.AudioAttributes
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.net.toUri
 import de.msjones.android.alarmapp.MainActivity
 import de.msjones.android.alarmapp.R
 
@@ -29,22 +30,43 @@ class NotificationHelper(private val context: Context) {
     }
 
     private fun createNotificationChannels() {
+        val soundUri = "android.resource://${context.packageName}/${R.raw.piepser}".toUri()
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_MIN
-            )
+            ).apply {
+                description = "ServiceChannel"
+                setSound(soundUri, AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .build()
+                )
+            }
             notificationManager.createNotificationChannel(serviceChannel)
+
+            // --- Message Channel ---
+            // Prüfen, ob Channel schon existiert
+            val existingChannel = notificationManager.getNotificationChannel(MESSAGE_CHANNEL_ID)
+            if (existingChannel != null) {
+                // Channel löschen, um neuen Ton zu setzen
+                notificationManager.deleteNotificationChannel(MESSAGE_CHANNEL_ID)
+            }
 
             val messages = NotificationChannel(
                 MESSAGE_CHANNEL_ID, MESSAGE_CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH
             ).apply {
+                description = "AlarmChannel"
                 enableVibration(true)
-                setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION), null)
+                setSound(soundUri, AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .build()
+                )
             }
             notificationManager.createNotificationChannel(messages)
         }
     }
-
     /** Baut die Foreground-Service-Notification */
     fun buildServiceNotification(content: String): Notification {
         val intent = Intent(context, MainActivity::class.java)
@@ -83,7 +105,6 @@ class NotificationHelper(private val context: Context) {
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
             .build()
 
         notificationManager.notify(System.currentTimeMillis().toInt(), notification)
