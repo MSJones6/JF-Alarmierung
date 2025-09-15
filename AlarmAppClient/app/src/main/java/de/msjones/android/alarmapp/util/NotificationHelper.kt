@@ -53,7 +53,7 @@ class NotificationHelper(private val context: Context) {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         return NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_alarm_notification_small)
             .setContentTitle("JF Alarm")
             .setContentText(content)
             .setContentIntent(pendingIntent)
