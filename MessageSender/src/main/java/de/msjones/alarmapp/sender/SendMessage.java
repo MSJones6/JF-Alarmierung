@@ -1,33 +1,38 @@
 package de.msjones.alarmapp.sender;
 
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
-import com.rabbitmq.client.ConnectionFactory;
+import org.eclipse.paho.client.mqttv3.*;
 
 public class SendMessage {
-
-    private final static String QUEUE_NAME = "Alarm";
-
     public static void main(String[] args) {
-        // ConnectionFactory konfigurieren
-        ConnectionFactory factory = new ConnectionFactory();
-        factory.setHost("localhost"); // RabbitMQ-Server-Adresse
-        factory.setPort(5672);
-        factory.setUsername("user"); // Standard-Benutzername
-        factory.setPassword("password"); // Standard-Passwort
+        String broker = "tcp://localhost:1883"; // Adresse des Mosquitto-Brokers
+        String clientId = "JavaPublisher";     // Eindeutige Client-ID
+        String topic = "JF/Alarm";           // Topic, an das gesendet wird
+        String payload = "Hallo vom Java-MQTT-Client!";
 
-        try (Connection connection = factory.newConnection();
-             Channel channel = connection.createChannel()) {
+        try (IMqttClient client = new MqttClient(broker, clientId)) {
+            // Verbindungsoptionen
+            MqttConnectOptions options = new MqttConnectOptions();
+            options.setAutomaticReconnect(true);
+            options.setCleanSession(true);
+            options.setConnectionTimeout(10);
 
-            // Queue deklarieren (falls sie noch nicht existiert)
-//            channel.queueDeclare(QUEUE_NAME, false, false, false, null);
+            // Mit dem Broker verbinden
+            client.connect(options);
+            System.out.println("Verbunden mit Broker: " + broker);
 
-            String message = "Alarm TLF!";
-            // Nachricht an die Queue senden
-            channel.basicPublish("", QUEUE_NAME, null, message.getBytes("UTF-8"));
-            System.out.println(" [x] Gesendet: '" + message + "'");
+            // Nachricht erstellen
+            MqttMessage message = new MqttMessage(payload.getBytes());
+            message.setQos(1);   // Quality of Service (0, 1 oder 2)
+            message.setRetained(false);
 
-        } catch (Exception e) {
+            // Nachricht senden
+            client.publish(topic, message);
+            System.out.println("Nachricht gesendet: " + payload);
+
+            // Verbindung schließen
+            client.disconnect();
+            System.out.println("Verbindung getrennt.");
+        } catch (MqttException e) {
             e.printStackTrace();
         }
     }
