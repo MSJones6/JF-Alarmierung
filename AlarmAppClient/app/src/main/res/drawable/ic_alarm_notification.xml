@@ -4,33 +4,41 @@
     android:viewportWidth="48"
     android:viewportHeight="48">
 
-    <!-- Weißer Hintergrund -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M0,0h48v48h-48z" />
+    <!-- Transparenter Hintergrund (kein Pfad nötig) -->
+  <group android:pivotX="512"
+         android:pivotY="512"
+         android:scaleX="0.11"
+         android:scaleY="0.11"
+         android:translateX="-488"
+         android:translateY="-488">
+    <group android:name="Glocke gesamt">
+        <group android:name="Glocke">
+            <path
+                android:fillColor="@android:color/transparent"
+                android:strokeColor="#FFFFFF"
+                android:strokeWidth="20"
+                android:pathData="M483,365
+                              A30,30 0 1,1 541,365"/>
+            <path
+                android:fillColor="#FFFFFF"
+                android:strokeColor="#FFFFFF"
+                android:strokeWidth="20"
+                android:pathData="M410,470
+                              A6,6 0 1,1 614,470"/>
+            <path
+                android:fillColor="#FFFFFF"
+                android:strokeColor="#FFFFFF"
+                android:pathData="M400,470
+                              C400,480 400,600 340,652
+                              L684,652
+                              C624,600 624,480 624,470"/>
+        </group>
 
-    <!-- Roter Rahmen -->
-    <path
-        android:fillColor="#FF0000"
-        android:strokeWidth="4"
-        android:strokeColor="#FF0000"
-        android:pathData="M2,2h44v44h-44z" />
-
-    <!-- Rote Glocke (vereinfacht) -->
-    <path
-        android:fillColor="#FF0000"
-        android:pathData="M24,8
-                          a12,12 0 0,1 12,12
-                          v8
-                          h4v2h-32v-2h4v-8
-                          a12,12 0 0,1 12,-12
-                          z" />
-
-    <!-- Klöppel -->
-    <path
-        android:fillColor="#FF0000"
-        android:pathData="M22,36
-                          a2,2 0 1,0 4,0
-                          a2,2 0 1,0 -4,0
-                          z" />
+        <!-- Kloeppel -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M474,665
+                            A1,1 0 1,0 554,665"/>
+    </group>
+  </group>
 </vector>

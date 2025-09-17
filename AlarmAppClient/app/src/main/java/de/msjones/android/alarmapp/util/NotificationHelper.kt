@@ -46,13 +46,6 @@ class NotificationHelper(private val context: Context) {
             notificationManager.createNotificationChannel(serviceChannel)
 
             // --- Message Channel ---
-            // Prüfen, ob Channel schon existiert
-            val existingChannel = notificationManager.getNotificationChannel(MESSAGE_CHANNEL_ID)
-            if (existingChannel != null) {
-                // Channel löschen, um neuen Ton zu setzen
-                notificationManager.deleteNotificationChannel(MESSAGE_CHANNEL_ID)
-            }
-
             val messages = NotificationChannel(
                 MESSAGE_CHANNEL_ID, MESSAGE_CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH
             ).apply {
@@ -75,7 +68,7 @@ class NotificationHelper(private val context: Context) {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         return NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_alarm_notification_small)
+            .setSmallIcon(R.drawable.ic_alarm_notification)
             .setContentTitle("JF Alarm")
             .setContentText(content)
             .setContentIntent(pendingIntent)
@@ -97,7 +90,7 @@ class NotificationHelper(private val context: Context) {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         val notification = NotificationCompat.Builder(context, MESSAGE_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_alarm_notification_small)
+            .setSmallIcon(R.drawable.ic_alarm_notification)
             .setContentTitle("Neue Nachricht")
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))

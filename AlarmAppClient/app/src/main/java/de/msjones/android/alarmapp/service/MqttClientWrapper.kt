@@ -3,7 +3,6 @@ package de.msjones.android.alarmapp.service
 import android.content.Context
 import android.util.Log
 import com.hivemq.client.mqtt.MqttClient
-import com.hivemq.client.mqtt.datatypes.MqttQos
 import com.hivemq.client.mqtt.mqtt3.Mqtt3AsyncClient
 import com.hivemq.client.mqtt.mqtt3.message.publish.Mqtt3Publish
 import kotlinx.coroutines.CoroutineScope
@@ -31,45 +30,16 @@ class MqttClientWrapper(
         try {
             client = MqttClient.builder()
                 .useMqttVersion3()
-//                .identifier(clientId)
+                .identifier(clientId)
                 .serverHost(serverUri.substringAfter("tcp://").substringBefore(":"))
                 .serverPort(serverUri.substringAfterLast(":").toInt())
                 .buildAsync()
 
-
-//            fun connectAndListen() {
-//                client?.connect()
-//                    ?.whenComplete { connAck, throwable ->
-//                        if (throwable != null) {
-//                            println("❌ Verbindung fehlgeschlagen: $throwable")
-//                        } else {
-//                            println("✅ Verbunden mit Broker")
-//
-//                            // Nur abonnieren, kein Publish
-//                            client?.subscribeWith()
-//                                ?.topicFilter("JF/Alarm")
-//                                ?.qos(MqttQos.AT_LEAST_ONCE)
-//                                ?.callback { publish ->
-//                                    val msg = publish.payloadAsBytes?.toString(Charsets.UTF_8) ?: "<leer>"
-//                                    println("📩 Neue Nachricht empfangen: $msg")
-//                                }
-//                                ?.send()
-//                                ?.whenComplete { subAck, subThrowable ->
-//                                    if (subThrowable != null) {
-//                                        println("❌ Subscribe fehlgeschlagen: $subThrowable")
-//                                    } else {
-//                                        println("✅ Erfolgreich subscribed auf test/topic")
-//                                    }
-//                                }
-//                        }
-//                    }
-//            }
-
             client?.connectWith()
-//                ?.simpleAuth()
-//                ?.username(user)
-//                ?.password(pass.toByteArray())
-//                ?.applySimpleAuth()
+                ?.simpleAuth()
+                ?.username(user)
+                ?.password(pass.toByteArray())
+                ?.applySimpleAuth()
                 ?.send()
 
             isConnected.set(true)
