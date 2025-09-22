@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.IBinder
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import de.msjones.android.alarmapp.data.SettingsStore
 import de.msjones.android.alarmapp.util.NotificationHelper
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +24,7 @@ class MessagingService : LifecycleService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
 
         // Foreground-Service starten
         startForeground(
@@ -79,4 +81,15 @@ class MessagingService : LifecycleService() {
     override fun onBind(intent: Intent): IBinder? {
         return super.onBind(intent)
     }
+
+    private fun handleIncomingMessage(msg: String) {
+        // Bisher: Notification zeigen
+        helper.showIncomingMessage(msg)
+
+        // Neu: Broadcast für MainActivity
+        val intent = Intent("NEW_MESSAGE")
+        intent.putExtra("message", msg)
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+    }
+
 }

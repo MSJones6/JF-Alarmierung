@@ -7,20 +7,20 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.Color
-import androidx.core.content.ContextCompat
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
-import com.google.accompanist.systemuicontroller.rememberSystemUiController
+import androidx.lifecycle.viewmodel.compose.viewModel
 import de.msjones.android.alarmapp.data.ServerSettings
 import de.msjones.android.alarmapp.data.SettingsStore
 import de.msjones.android.alarmapp.service.MessagingService
+import de.msjones.android.alarmapp.ui.MessageListScreen
+import de.msjones.android.alarmapp.ui.MessageViewModel
 import de.msjones.android.alarmapp.ui.SettingsScreen
+import de.msjones.android.alarmapp.ui.theme.JFAlarmTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 
 class MainActivity : ComponentActivity() {
 
@@ -35,19 +35,12 @@ class MainActivity : ComponentActivity() {
 
         store = SettingsStore(this)
 
-        // StatusBar Farbe + Icons einstellen
-        val window = window
-        window.statusBarColor = ContextCompat.getColor(this, R.color.black) // gewünschte Farbe
-        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false // helle Icons
-        WindowCompat.setDecorFitsSystemWindows(window, true) // Layout startet unterhalb StatusBar
-
         // Benachrichtigungsrechte anfragen (nur ab Android 13)
         if (Build.VERSION.SDK_INT >= 33) {
             reqNotifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
         lifecycleScope.launch {
-            // gespeicherte Werte laden oder Defaults setzen
             val initial: ServerSettings = try {
                 store.flow.first()
             } catch (e: Exception) {
@@ -61,15 +54,31 @@ class MainActivity : ComponentActivity() {
             }
 
             setContent {
-                // Compose UI
-                SettingsScreen(
-                    initial = initial,
-                    onSave = { s -> lifecycleScope.launch { store.save(s) } },
-                    onStartService = { startMessagingService() },
-                    onStopService = {
-                        stopService(Intent(this@MainActivity, MessagingService::class.java))
+                JFAlarmTheme {
+                    val navController = rememberNavController()
+                    val msgViewModel: MessageViewModel = viewModel()
+
+                    NavHost(navController = navController, startDestination = "messages") {
+                        composable("messages") {
+                            MessageListScreen(
+                                viewModel = msgViewModel,
+                                onSettingsClick = {
+                                    navController.navigate("settings")
+                                }
+                            )
+                        }
+                        composable("settings") {
+                            SettingsScreen(
+                                initial = initial,
+                                onSave = { s -> lifecycleScope.launch { store.save(s) } },
+                                onStartService = { startMessagingService() },
+                                onStopService = {
+                                    stopService(Intent(this@MainActivity, MessagingService::class.java))
+                                }
+                            )
+                        }
                     }
-                )
+                }
             }
         }
     }
@@ -80,20 +89,6 @@ class MainActivity : ComponentActivity() {
             startForegroundService(intent)
         } else {
             startService(intent)
-        }
-    }
-
-
-    @Composable
-    fun SetStatusBar() {
-        val systemUiController = rememberSystemUiController()
-        val statusBarColor = Color.Black // gewünschte Farbe
-
-        SideEffect {
-            systemUiController.setStatusBarColor(
-                color = statusBarColor,
-                darkIcons = false // false = helle Icons
-            )
         }
     }
 }
