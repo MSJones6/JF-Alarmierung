@@ -67,3 +67,30 @@ export default tseslint.config([
   },
 ])
 ```
+
+# Handle app
+## Add date to allow user to access topic
+Go to the system, where docker is running with the mosquitto server and use the followning commands:
+
+### Add user authentication
+```
+docker exec -it <container_name> mosquitto_passwd -b /mosquitto/config/passwordfile.conf <USERNAME> <PASSWORD>
+```
+
+### Add user autorization
+#### Add access rights
+Edit mosquitto/config/aclfile.conf.
+
+Add a block like the following:
+```
+user <USERNAME>
+topic <read|write|readwrite> <TOPIC>
+```
+
+### Remove user authentication
+docker exec -it <container_name> mosquitto_passwd -D /mosquitto/config/passwordfile.conf <USERNAME>
+
+### Restart the mosquitto server
+```
+docker restart <container_name>
+```
