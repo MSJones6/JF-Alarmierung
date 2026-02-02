@@ -121,6 +121,10 @@ class MainActivity : ComponentActivity() {
                                 connections.forEach { connection ->
                                     startMessagingService(connection)
                                 }
+                                // Broadcast service running state
+                                val intent = Intent("SERVICE_RUNNING_STATE")
+                                intent.putExtra("is_running", true)
+                                LocalBroadcastManager.getInstance(this@MainActivity).sendBroadcast(intent)
                             },
                             onStopAllServices = {
                                 // Stop all services by sending stop intent for each
@@ -130,6 +134,10 @@ class MainActivity : ComponentActivity() {
                                         MessagingService::class.java
                                     )
                                 )
+                                // Broadcast service stopped state
+                                val intent = Intent("SERVICE_RUNNING_STATE")
+                                intent.putExtra("is_running", false)
+                                LocalBroadcastManager.getInstance(this@MainActivity).sendBroadcast(intent)
                             },
                             onServiceFailed = {
                                 // Service failed to start (e.g., auth error)
@@ -140,6 +148,10 @@ class MainActivity : ComponentActivity() {
                                         MessagingService::class.java
                                     )
                                 )
+                                // Broadcast service stopped state
+                                val intent = Intent("SERVICE_RUNNING_STATE")
+                                intent.putExtra("is_running", false)
+                                LocalBroadcastManager.getInstance(this@MainActivity).sendBroadcast(intent)
                             },
                             isServiceRunning = isMessagingServiceRunning()
                         )

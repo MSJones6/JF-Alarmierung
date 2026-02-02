@@ -78,6 +78,7 @@ fun SettingsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var authErrorMessage by remember { mutableStateOf<String?>(null) }
     var serviceEnabled by remember(isServiceRunning) { mutableStateOf(isServiceRunning) }
+    var activeConnectionCount by remember { mutableStateOf(0) }
     var screenState by remember { mutableStateOf<SettingsScreenState>(SettingsScreenState.List) }
 
     // Register broadcast receiver for auth errors
@@ -98,7 +99,46 @@ fun SettingsScreen(
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action == "STOP_ALL_CONNECTIONS") {
                     serviceEnabled = false
+                    // Don't reset counter here - ERROR/DISCONNECTED broadcasts handle decrementing
                     screenState = SettingsScreenState.List
+                }
+            }
+        }
+    }
+
+    // Register broadcast receiver for service running state updates
+    val serviceRunningReceiver = remember {
+        object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == "SERVICE_RUNNING_STATE") {
+                    val isRunning = intent.getBooleanExtra("is_running", false)
+                    serviceEnabled = isRunning
+                    // Reset counter when service is stopped manually
+                    if (!isRunning && activeConnectionCount > 0) {
+                        activeConnectionCount = 0
+                    }
+                }
+            }
+        }
+    }
+
+    // Register broadcast receiver for connection state updates (to count active connections)
+    val connectionStateReceiver = remember {
+        object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == "CONNECTION_STATE") {
+                    val status = intent.getStringExtra("state_status") ?: ""
+                    when (status.uppercase()) {
+                        "SUBSCRIBED" -> {
+                            activeConnectionCount += 1
+                        }
+                        "DISCONNECTED", "ERROR" -> {
+                            // Decrement only if we have active connections
+                            if (activeConnectionCount > 0) {
+                                activeConnectionCount -= 1
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -109,6 +149,7 @@ fun SettingsScreen(
             snackbarHostState.showSnackbar(message)
             authErrorMessage = null
             serviceEnabled = false
+            activeConnectionCount = 0
             onServiceFailed()
         }
     }
@@ -119,12 +160,20 @@ fun SettingsScreen(
 
         val stopAllFilter = IntentFilter("STOP_ALL_CONNECTIONS")
         LocalBroadcastManager.getInstance(context).registerReceiver(stopAllReceiver, stopAllFilter)
+
+        val serviceRunningFilter = IntentFilter("SERVICE_RUNNING_STATE")
+        LocalBroadcastManager.getInstance(context).registerReceiver(serviceRunningReceiver, serviceRunningFilter)
+
+        val connectionStateFilter = IntentFilter("CONNECTION_STATE")
+        LocalBroadcastManager.getInstance(context).registerReceiver(connectionStateReceiver, connectionStateFilter)
     }
 
     DisposableEffect(Unit) {
         onDispose {
             LocalBroadcastManager.getInstance(context).unregisterReceiver(authErrorReceiver)
             LocalBroadcastManager.getInstance(context).unregisterReceiver(stopAllReceiver)
+            LocalBroadcastManager.getInstance(context).unregisterReceiver(serviceRunningReceiver)
+            LocalBroadcastManager.getInstance(context).unregisterReceiver(connectionStateReceiver)
         }
     }
 
@@ -160,6 +209,7 @@ fun SettingsScreen(
                 activeConnectionId = activeConnectionId,
                 serviceEnabled = serviceEnabled,
                 isServiceRunning = isServiceRunning,
+                activeConnectionCount = activeConnectionCount,
                 snackbarHostState = snackbarHostState,
                 onStartAllServices = onStartAllServices,
                 onStopAllServices = onStopAllServices,
@@ -179,6 +229,7 @@ private fun SettingsListContent(
     activeConnectionId: String?,
     serviceEnabled: Boolean,
     isServiceRunning: Boolean,
+    activeConnectionCount: Int,
     snackbarHostState: SnackbarHostState,
     onStartAllServices: () -> Unit,
     onStopAllServices: () -> Unit,
@@ -218,9 +269,9 @@ private fun SettingsListContent(
             ) {
                 Column {
                     Text("Dienst aktiv", style = MaterialTheme.typography.bodyLarge)
-                    if (isServiceRunning) {
+                    if (activeConnectionCount > 0) {
                         Text(
-                            text = "${connections.size} Verbindungen aktiv",
+                            text = "$activeConnectionCount Verbindungen aktiv",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary
                         )
