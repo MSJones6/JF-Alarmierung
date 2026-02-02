@@ -11,15 +11,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -31,12 +32,14 @@ fun SettingsScreen(
     onSave: (ServerSettings) -> Unit,
     onStartService: () -> Unit,
     onStopService: () -> Unit,
+    isServiceRunning: Boolean = false,
 ) {
     var host by remember { mutableStateOf(initial.host) }
     var port by remember { mutableStateOf(initial.port.toString()) }
     var user by remember { mutableStateOf(initial.username) }
     var pass by remember { mutableStateOf(initial.password) }
     var topic by remember { mutableStateOf(initial.topic) }
+    var serviceEnabled by remember(isServiceRunning) { mutableStateOf(isServiceRunning) }
 
     Surface(color = MaterialTheme.colorScheme.background) {
         Column(Modifier
@@ -69,9 +72,26 @@ fun SettingsScreen(
                         )
                     )
                 }) { Text("Speichern") }
+            }
 
-                Button(onClick = onStartService) { Text("Service starten") }
-                OutlinedButton(onClick = onStopService) { Text("Service stoppen") }
+            Spacer(Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Dienst aktiv", style = MaterialTheme.typography.bodyLarge)
+                Switch(
+                    checked = serviceEnabled,
+                    onCheckedChange = { enabled ->
+                        serviceEnabled = enabled
+                        if (enabled) {
+                            onStartService()
+                        } else {
+                            onStopService()
+                        }
+                    }
+                )
             }
         }
     }

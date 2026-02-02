@@ -1,6 +1,7 @@
 package de.msjones.android.alarmapp
 
 import android.Manifest
+import android.app.ActivityManager
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -73,8 +74,14 @@ class MainActivity : ComponentActivity() {
                                 onSave = { s -> lifecycleScope.launch { store.save(s) } },
                                 onStartService = { startMessagingService() },
                                 onStopService = {
-                                    stopService(Intent(this@MainActivity, MessagingService::class.java))
-                                }
+                                    stopService(
+                                        Intent(
+                                            this@MainActivity,
+                                            MessagingService::class.java
+                                        )
+                                    )
+                                },
+                                isServiceRunning = isMessagingServiceRunning()
                             )
                         }
                     }
@@ -83,12 +90,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun isMessagingServiceRunning(): Boolean {
+        val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+
+        @Suppress("DEPRECATION")
+        val services = activityManager.getRunningServices(Int.MAX_VALUE)
+        return services.any { service ->
+            service.service.className == MessagingService::class.java.name
+        }
+    }
+
     private fun startMessagingService() {
         val intent = Intent(this, MessagingService::class.java)
-        if (Build.VERSION.SDK_INT >= 26) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
+        startForegroundService(intent)
     }
 }
