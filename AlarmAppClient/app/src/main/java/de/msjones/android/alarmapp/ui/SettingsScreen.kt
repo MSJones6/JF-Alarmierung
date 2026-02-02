@@ -1,5 +1,9 @@
 package de.msjones.android.alarmapp.ui
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,18 +16,26 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import de.msjones.android.alarmapp.data.ServerSettings
 
 @Composable
@@ -32,14 +44,56 @@ fun SettingsScreen(
     onSave: (ServerSettings) -> Unit,
     onStartService: () -> Unit,
     onStopService: () -> Unit,
+    onServiceFailed: () -> Unit = {},
     isServiceRunning: Boolean = false,
 ) {
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    var authErrorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Service enabled state - must be declared before receiver to be accessible
+    var serviceEnabled by remember(isServiceRunning) { mutableStateOf(isServiceRunning) }
+
+    // Register broadcast receiver for auth errors
+    val authErrorReceiver = remember {
+        object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == "AUTH_ERROR") {
+                    val errorMessage = intent.getStringExtra("error_message") ?: "Authentifizierungsfehler"
+                    authErrorMessage = errorMessage
+                }
+            }
+        }
+    }
+
+    // Show snackbar and reset switch when auth error message changes
+    LaunchedEffect(authErrorMessage) {
+        authErrorMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            authErrorMessage = null  // Reset after showing
+            // Reset the service switch and call failure callback
+            serviceEnabled = false
+            onServiceFailed()
+        }
+    }
+
+    // Register and unregister the receiver
+    LaunchedEffect(Unit) {
+        val filter = IntentFilter("AUTH_ERROR")
+        LocalBroadcastManager.getInstance(context).registerReceiver(authErrorReceiver, filter)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            LocalBroadcastManager.getInstance(context).unregisterReceiver(authErrorReceiver)
+        }
+    }
+
     var host by remember { mutableStateOf(initial.host) }
     var port by remember { mutableStateOf(initial.port.toString()) }
     var user by remember { mutableStateOf(initial.username) }
     var pass by remember { mutableStateOf(initial.password) }
     var topic by remember { mutableStateOf(initial.topic) }
-    var serviceEnabled by remember(isServiceRunning) { mutableStateOf(isServiceRunning) }
 
     Surface(color = MaterialTheme.colorScheme.background) {
         Column(Modifier
@@ -92,6 +146,22 @@ fun SettingsScreen(
                         }
                     }
                 )
+            }
+
+            // Show auth error snackbar
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(16.dp)
+            ) { data ->
+                Snackbar(
+                    action = {
+                        TextButton(onClick = { snackbarHostState.currentSnackbarData?.dismiss() }) {
+                            Text("OK")
+                        }
+                    }
+                ) {
+                    Text(data.visuals.message)
+                }
             }
         }
     }

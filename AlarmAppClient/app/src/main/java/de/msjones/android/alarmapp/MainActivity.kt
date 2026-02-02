@@ -87,6 +87,10 @@ class MainActivity : ComponentActivity() {
                                         )
                                     )
                                 },
+                                onServiceFailed = {
+                                    // Service failed to start (e.g., auth error)
+                                    // The switch will be reset by the broadcast receiver
+                                },
                                 isServiceRunning = isMessagingServiceRunning()
                             )
                         }

@@ -6,6 +6,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.hivemq.client.mqtt.MqttClient
 import com.hivemq.client.mqtt.mqtt3.Mqtt3AsyncClient
+import com.hivemq.client.mqtt.mqtt3.message.connect.connack.Mqtt3ConnAck
 import com.hivemq.client.mqtt.mqtt3.message.publish.Mqtt3Publish
 
 import kotlinx.coroutines.future.await
@@ -22,7 +23,8 @@ class MqttClientWrapper(
     private val pass: String,
     private val topic: String,
     private val onMessage: (String) -> Unit,
-    private val onState: (String) -> Unit
+    private val onState: (String) -> Unit,
+    private val onAuthError: ((String) -> Unit)? = null
 ) {
 
     private var client: Mqtt3AsyncClient? = null
@@ -37,12 +39,35 @@ class MqttClientWrapper(
                 .serverPort(serverUri.substringAfterLast(":").toInt())
                 .buildAsync()
 
-            client?.connectWith()
+            val connAck: Mqtt3ConnAck = client?.connectWith()
                 ?.simpleAuth()
                 ?.username(user)
                 ?.password(pass.toByteArray())
                 ?.applySimpleAuth()
                 ?.send()
+                ?.await() ?: throw Exception("Verbindung fehlgeschlagen")
+
+            // Check connection result
+            if (connAck.returnCode.isError) {
+                val errorMessage = "Verbindung abgelehnt: ${connAck.returnCode}"
+                Log.e("MqttClientWrapper", "Connection error: $errorMessage")
+                
+                // Check if it's an auth error based on return code
+                val returnCode = connAck.returnCode.toString().lowercase()
+                val isAuthError = returnCode.contains("bad") || 
+                                  returnCode.contains("auth") ||
+                                  returnCode.contains("not authorized") ||
+                                  returnCode.contains("identifier") ||
+                                  returnCode.contains("credential")
+                
+                if (isAuthError) {
+                    onAuthError?.invoke("Falscher Benutzername oder Passwort")
+                } else {
+                    onState("Verbindungsfehler: $errorMessage")
+                }
+                isConnected.set(false)
+                return
+            }
 
             isConnected.set(true)
             onState("Verbunden mit $serverUri")
@@ -50,8 +75,28 @@ class MqttClientWrapper(
             subscribe(topic)
 
         } catch (e: Exception) {
-            Log.e("MqttClientWrapper", "Connect error: ${e.message}", e)
-            onState("Fehler beim Verbinden: ${e.message}")
+            val message = e.message ?: "Unbekannter Fehler"
+            Log.e("MqttClientWrapper", "Connect error: $message", e)
+            
+            // Detect authentication-specific errors
+            val msgLower = message.lowercase()
+            val isAuthError = msgLower.contains("not authorized") ||
+                              msgLower.contains("authentication failed") ||
+                              msgLower.contains("bad username") ||
+                              msgLower.contains("bad user") ||
+                              msgLower.contains("connection refused") ||
+                              msgLower.contains("identifier rejected") ||
+                              msgLower.contains("credentials") ||
+                              msgLower.contains("not_authorized") ||
+                              msgLower.contains("not authorized") ||
+                              msgLower.contains("auth")
+            
+            if (isAuthError) {
+                Log.d("MqttClientWrapper", "Auth error detected, calling onAuthError callback")
+                onAuthError?.invoke("Falscher Benutzername oder Passwort")
+            } else {
+                onState("Fehler beim Verbinden: $message")
+            }
             isConnected.set(false)
         }
     }

@@ -61,6 +61,15 @@ class MessagingService : LifecycleService() {
                     lifecycleScope.launch(Dispatchers.Main) {
                         helper.updateServiceNotification(state)
                     }
+                },
+                onAuthError = { errorMessage ->
+                    lifecycleScope.launch(Dispatchers.Main) {
+                        helper.updateServiceNotification(errorMessage)
+                        // Broadcast auth error to UI
+                        val intent = Intent("AUTH_ERROR")
+                        intent.putExtra("error_message", errorMessage)
+                        LocalBroadcastManager.getInstance(this@MessagingService).sendBroadcast(intent)
+                    }
                 }
             )
 
