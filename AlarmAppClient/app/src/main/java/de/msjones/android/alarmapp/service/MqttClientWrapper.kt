@@ -2,11 +2,12 @@ package de.msjones.android.alarmapp.service
 
 import android.content.Context
 import android.util.Log
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import com.hivemq.client.mqtt.MqttClient
 import com.hivemq.client.mqtt.mqtt3.Mqtt3AsyncClient
 import com.hivemq.client.mqtt.mqtt3.message.publish.Mqtt3Publish
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import java.nio.charset.StandardCharsets
@@ -14,6 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class MqttClientWrapper(
     private val context: Context,
+    private val lifecycleOwner: LifecycleOwner,
     private val serverUri: String,
     private val clientId: String,
     private val user: String,
@@ -70,7 +72,7 @@ class MqttClientWrapper(
                     val message = String(payloadBytes, StandardCharsets.UTF_8)
 
                     // Callback an MessagingService auf MainThread
-                    CoroutineScope(Dispatchers.Main).launch {
+                    lifecycleOwner.lifecycleScope.launch {
                         onMessage(message)
                     }
                 }

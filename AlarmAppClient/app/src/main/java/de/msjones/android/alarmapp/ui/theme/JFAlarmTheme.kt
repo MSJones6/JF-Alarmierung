@@ -10,25 +10,25 @@ private val LightColorScheme = lightColorScheme(
     onPrimary = Color.White,
     secondary = Color(0xFF03DAC6),
     onSecondary = Color.Black,
-    background = Color(0xFF0000F5),
-    onBackground = Color.Black,
-    surface = Color.White,
+    background = Color(0xFFFFFBFE),
+    onBackground = Color(0xFF1C1B1F),
+    surface = Color(0xFFFFFBFE),
     onSurface = Color.Black,
-    error = Color(0xFFB00020),
+    error = Color(0xFFB3261E),
     onError = Color.White
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFFBB86FC),
-    onPrimary = Color.Black,
+    primary = Color(0xFF0000FF),
+    onPrimary = Color.Yellow,//(0xFF381E72),
     secondary = Color(0xFF03DAC6),
-    onSecondary = Color.Black,
-    background = Color(0xFF0000F5),
-    onBackground = Color.White,
-    surface = Color(0xFF1E1E1E),
-    onSurface = Color.White,
-    error = Color(0xFFCF6679),
-    onError = Color.Black
+    onSecondary = Color(0xFF003731),
+    background = Color(0xFF1C1B1F),
+    onBackground = Color(0xFFE6E1E5),
+    surface = Color.Black,//(0xFF1C1B1F),
+    onSurface = Color.Yellow,//Black,
+    error = Color(0xFFF2B8B5),
+    onError = Color(0xFF601410)
 )
 
 @Composable
@@ -40,8 +40,8 @@ fun JFAlarmTheme(
 
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = Typography(),  // Du kannst hier eigene Typography setzen
-            shapes = Shapes(),          // eigene Shapes
+            typography = Typography(),
+            shapes = Shapes(),
             content = content
         )
 }

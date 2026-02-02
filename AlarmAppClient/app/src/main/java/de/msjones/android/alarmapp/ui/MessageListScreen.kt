@@ -11,7 +11,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.background
-import androidx.compose.material.DismissDirection
+
 import androidx.compose.ui.graphics.Color
 
 @OptIn(ExperimentalMaterial3Api::class)

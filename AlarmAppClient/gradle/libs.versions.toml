@@ -1,7 +1,7 @@
 [versions]
 accompanistSystemuicontroller = "0.36.0"
 activityComposeVersion = "1.11.0"
-agp = "8.13.0"
+agp = "9.0.0"
 datastorePreferences = "1.1.7"
 hivemqMqttClient = "1.3.9"
 kotlin = "2.2.20"
@@ -12,16 +12,13 @@ lifecycleRuntimeKtxVersion = "2.9.4"
 lifecycleService = "2.9.4"
 lifecycleViewmodelCompose = "2.9.4"
 localbroadcastmanager = "1.1.0"
-material = "1.9.1"
 material3 = "1.3.2"
-materialVersion = "1.13.0"
 navigationCompose = "2.9.4"
 workRuntimeKtx = "2.10.4"
 
 [libraries]
 accompanist-systemuicontroller = { module = "com.google.accompanist:accompanist-systemuicontroller", version.ref = "accompanistSystemuicontroller" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityComposeVersion" }
-androidx-compose-material = { module = "androidx.compose.material:material", version.ref = "material" }
 androidx-compose-material3 = { module = "androidx.compose.material3:material3", version.ref = "material3" }
 androidx-compose-ui = { module = "androidx.compose.ui:ui" }
 androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
@@ -38,7 +35,6 @@ hivemq-mqtt-client = { module = "com.hivemq:hivemq-mqtt-client", version.ref = "
 
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
-material = { module = "com.google.android.material:material", version.ref = "materialVersion" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

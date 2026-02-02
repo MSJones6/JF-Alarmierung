@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "de.msjones.android.alarmapp"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -47,14 +47,14 @@ android {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
+    val composeBom = platform("androidx.compose:compose-bom:2025.01.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.compose.material)
+
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
@@ -72,5 +72,5 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.kotlinx.coroutines.android)
 
-    implementation(libs.material)
+
 }

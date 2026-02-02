@@ -46,6 +46,7 @@ class MessagingService : LifecycleService() {
 
             mqttClientWrapper = MqttClientWrapper(
                 context = this@MessagingService,
+                lifecycleOwner = this@MessagingService,
                 serverUri = serverUri,
                 clientId = "AndroidClient-${System.currentTimeMillis()}",
                 user = s.username,

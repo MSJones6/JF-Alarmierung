@@ -12,6 +12,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.net.toUri
 import de.msjones.android.alarmapp.MainActivity
 import de.msjones.android.alarmapp.R
+import java.util.concurrent.atomic.AtomicInteger
 
 class NotificationHelper(private val context: Context) {
 
@@ -23,6 +24,7 @@ class NotificationHelper(private val context: Context) {
         const val MESSAGE_CHANNEL_NAME = "MQTT Messages"
     }
 
+    private val messageNotificationId = AtomicInteger(2000)
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     init {
@@ -100,6 +102,6 @@ class NotificationHelper(private val context: Context) {
             .setContentIntent(pendingIntent)
             .build()
 
-        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
+        notificationManager.notify(messageNotificationId.incrementAndGet(), notification)
     }
 }
