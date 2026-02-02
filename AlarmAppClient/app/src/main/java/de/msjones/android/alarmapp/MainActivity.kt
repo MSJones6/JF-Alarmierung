@@ -2,7 +2,10 @@ package de.msjones.android.alarmapp
 
 import android.Manifest
 import android.app.ActivityManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -19,6 +22,7 @@ import de.msjones.android.alarmapp.ui.SettingsScreen
 import de.msjones.android.alarmapp.ui.theme.JFAlarmTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -26,6 +30,8 @@ import androidx.navigation.compose.rememberNavController
 class MainActivity : ComponentActivity() {
 
     private lateinit var store: SettingsStore
+    private lateinit var msgViewModel: MessageViewModel
+    private var messageReceiver: BroadcastReceiver? = null
 
     private val reqNotifPerm = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -57,7 +63,7 @@ class MainActivity : ComponentActivity() {
             setContent {
                 JFAlarmTheme {
                     val navController = rememberNavController()
-                    val msgViewModel: MessageViewModel = viewModel()
+                    msgViewModel = viewModel()
 
                     NavHost(navController = navController, startDestination = "messages") {
                         composable("messages") {
@@ -87,6 +93,38 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        registerMessageReceiver()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        unregisterMessageReceiver()
+    }
+
+    private fun registerMessageReceiver() {
+        messageReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == "NEW_MESSAGE") {
+                    val message = intent.getStringExtra("message")
+                    message?.let {
+                        msgViewModel.addMessage(it)
+                    }
+                }
+            }
+        }
+        val filter = IntentFilter("NEW_MESSAGE")
+        LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver!!, filter)
+    }
+
+    private fun unregisterMessageReceiver() {
+        messageReceiver?.let {
+            LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
+            messageReceiver = null
         }
     }
 

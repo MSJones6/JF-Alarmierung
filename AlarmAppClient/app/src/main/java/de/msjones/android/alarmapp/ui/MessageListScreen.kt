@@ -11,6 +11,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.background
+import de.msjones.android.alarmapp.data.AlarmMessage
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 import androidx.compose.ui.graphics.Color
 
@@ -38,11 +42,10 @@ fun MessageListScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            itemsIndexed(messages.value, key = { index, _ -> index }) { index, msg ->
+            itemsIndexed(messages.value, key = { index, _ -> messages.value[index].id }) { index, msg ->
 
                 val dismissState = rememberSwipeToDismissBoxState(
                     confirmValueChange = { newValue ->
-                        // newValue ist vom Typ SwipeToDismissBoxValue
                         if (newValue == SwipeToDismissBoxValue.StartToEnd ||
                             newValue == SwipeToDismissBoxValue.EndToStart
                         ) {
@@ -62,19 +65,35 @@ fun MessageListScreen(
                         )
                     },
                     content = {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                        ) {
-                            Text(
-                                msg,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
+                        MessageCard(message = msg)
                     }
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun MessageCard(message: AlarmMessage) {
+    val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.getDefault())
+    val formattedDate = dateFormat.format(Date(message.timestamp))
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = message.message,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = formattedDate,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

@@ -54,7 +54,7 @@ class MessagingService : LifecycleService() {
                 topic = s.topic,
                 onMessage = { msg ->
                     lifecycleScope.launch(Dispatchers.Main) {
-                        helper.showIncomingMessage(msg)
+                        handleIncomingMessage(msg)
                     }
                 },
                 onState = { state ->
