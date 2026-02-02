@@ -9,12 +9,26 @@ public class SendMessage {
         String topic = "JF/Alarm";           // Topic, an das gesendet wird
         String payload = "Brand 3###Hauptstrasse 12, 66346 Püttlingen (Köllerbach)###Keine Person in Wohnung";
 
+        // Authentication credentials - use environment variables or defaults
+        String username = "alarm";
+        String password = "alarm";
+
+        // Fallback to defaults if environment variables are not set
+        if (username == null) {
+            System.err.println("Warning: MQTT_USERNAME is not set. Can't establish connection.");
+        }
+        if (password == null) {
+            System.err.println("Warning: MQTT_PASSWORD is not set. Can't establish connection.");
+        }
+
         try (IMqttClient client = new MqttClient(broker, clientId)) {
             // Verbindungsoptionen
             MqttConnectOptions options = new MqttConnectOptions();
             options.setAutomaticReconnect(true);
             options.setCleanSession(true);
             options.setConnectionTimeout(10);
+            options.setUserName(username);
+            options.setPassword(password.toCharArray());
 
             // Mit dem Broker verbinden
             client.connect(options);
