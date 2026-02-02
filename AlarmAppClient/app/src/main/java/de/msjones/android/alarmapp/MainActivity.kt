@@ -110,9 +110,12 @@ class MainActivity : ComponentActivity() {
         messageReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action == "NEW_MESSAGE") {
-                    val message = intent.getStringExtra("message")
-                    message?.let {
-                        msgViewModel.addMessage(it)
+                    val keyword = intent.getStringExtra("keyword") ?: ""
+                    val location = intent.getStringExtra("location") ?: ""
+                    val extras = intent.getStringExtra("extras") ?: ""
+                    
+                    if (keyword.isNotBlank() || location.isNotBlank() || extras.isNotBlank()) {
+                        msgViewModel.addMessage(keyword, location, extras)
                     }
                 }
             }

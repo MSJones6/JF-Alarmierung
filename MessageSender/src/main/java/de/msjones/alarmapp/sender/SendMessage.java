@@ -7,7 +7,7 @@ public class SendMessage {
         String broker = "tcp://localhost:1883"; // Adresse des Mosquitto-Brokers
         String clientId = "JavaPublisher";     // Eindeutige Client-ID
         String topic = "JF/Alarm";           // Topic, an das gesendet wird
-        String payload = "Hallo vom Java-MQTT-Client!";
+        String payload = "Brand 3###Hauptstrasse 12, 66346 Püttlingen (Köllerbach)###Keine Person in Wohnung";
 
         try (IMqttClient client = new MqttClient(broker, clientId)) {
             // Verbindungsoptionen

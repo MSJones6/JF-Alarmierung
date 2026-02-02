@@ -85,17 +85,29 @@ class NotificationHelper(private val context: Context) {
     }
 
     /** Zeigt eine eingehende Nachricht mit Ton und Popup */
-    fun showIncomingMessage(message: String) {
+    fun showIncomingMessage(keyword: String, location: String, extras: String) {
         val intent = Intent(context, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             context, 0, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
+        
+        val contentText = buildString {
+            if (location.isNotBlank()) {
+                append("Ort: $location")
+            }
+            if (extras.isNotBlank()) {
+                if (isNotBlank()) append("\n")
+                append(extras)
+            }
+        }
+        
         val notification = NotificationCompat.Builder(context, MESSAGE_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_alarm_notification)
-            .setContentTitle("Neue Nachricht")
-            .setContentText(message)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setContentTitle(keyword)
+            .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle()
+                .bigText(contentText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setAutoCancel(true)

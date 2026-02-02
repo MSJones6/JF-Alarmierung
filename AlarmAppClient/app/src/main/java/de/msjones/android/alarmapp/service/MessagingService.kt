@@ -84,12 +84,20 @@ class MessagingService : LifecycleService() {
     }
 
     private fun handleIncomingMessage(msg: String) {
-        // Bisher: Notification zeigen
-        helper.showIncomingMessage(msg)
+        // Nachricht parsen: Alarmstichwort###Ort###Sonstiges
+        val parts = msg.split("###", limit = 3)
+        val keyword = parts.getOrNull(0)?.trim() ?: ""
+        val location = parts.getOrNull(1)?.trim() ?: ""
+        val extras = parts.getOrNull(2)?.trim() ?: ""
+        
+        // Notification zeigen
+        helper.showIncomingMessage(keyword, location, extras)
 
-        // Neu: Broadcast für MainActivity
+        // Broadcast für MainActivity
         val intent = Intent("NEW_MESSAGE")
-        intent.putExtra("message", msg)
+        intent.putExtra("keyword", keyword)
+        intent.putExtra("location", location)
+        intent.putExtra("extras", extras)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
     }
 
