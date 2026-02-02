@@ -92,11 +92,33 @@ fun MessageCard(message: AlarmMessage, onDeleteClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
+                // Alarmstichwort - Fett und prominent
                 Text(
-                    text = message.message,
-                    style = MaterialTheme.typography.bodyLarge
+                    text = message.keyword,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.primary
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // Ort
+                if (message.location.isNotBlank()) {
+                    Text(
+                        text = "Ort: ${message.location}",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+                
+                // Sonstiges
+                if (message.extras.isNotBlank()) {
+                    Text(
+                        text = message.extras,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = formattedDate,
                     style = MaterialTheme.typography.bodySmall,

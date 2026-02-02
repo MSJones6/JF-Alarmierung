@@ -12,7 +12,9 @@ private val Context.messageDataStore by preferencesDataStore("messages")
 
 data class AlarmMessage(
     val id: String,
-    val message: String,
+    val keyword: String,
+    val location: String,
+    val extras: String,
     val timestamp: Long = System.currentTimeMillis()
 )
 
@@ -31,10 +33,12 @@ class MessageStore(private val context: Context) {
         }
     }
 
-    suspend fun addMessage(message: String) {
+    suspend fun addMessage(keyword: String, location: String, extras: String) {
         val newMessage = AlarmMessage(
             id = System.currentTimeMillis().toString(),
-            message = message
+            keyword = keyword,
+            location = location,
+            extras = extras
         )
 
         context.messageDataStore.edit { prefs ->
@@ -69,12 +73,14 @@ class MessageStore(private val context: Context) {
     private fun parseMessages(json: String): List<AlarmMessage> {
         return try {
             json.split("|||").filter { it.isNotEmpty() }.mapNotNull { entry ->
-                val parts = entry.split("###", limit = 3)
-                if (parts.size >= 3) {
+                val parts = entry.split("###", limit = 5)
+                if (parts.size >= 5) {
                     AlarmMessage(
                         id = parts[0],
-                        message = parts[1],
-                        timestamp = parts[2].toLongOrNull() ?: System.currentTimeMillis()
+                        keyword = parts[1],
+                        location = parts[2],
+                        extras = parts[3],
+                        timestamp = parts[4].toLongOrNull() ?: System.currentTimeMillis()
                     )
                 } else null
             }
@@ -85,7 +91,7 @@ class MessageStore(private val context: Context) {
 
     private fun serializeMessages(messages: List<AlarmMessage>): String {
         return messages.joinToString("|||") { msg ->
-            "${msg.id}###${msg.message}###${msg.timestamp}"
+            "${msg.id}###${msg.keyword}###${msg.location}###${msg.extras}###${msg.timestamp}"
         }
     }
 }

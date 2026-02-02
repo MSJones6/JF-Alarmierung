@@ -21,9 +21,9 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
             initialValue = emptyList()
         )
 
-    fun addMessage(msg: String) {
+    fun addMessage(keyword: String, location: String, extras: String) {
         viewModelScope.launch {
-            store.addMessage(msg)
+            store.addMessage(keyword, location, extras)
         }
     }
 
