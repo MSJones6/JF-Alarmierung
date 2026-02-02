@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,6 +35,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var store: SettingsStore
     private lateinit var msgViewModel: MessageViewModel
     private var messageReceiver: BroadcastReceiver? = null
+    private var connectionStateReceiver: BroadcastReceiver? = null
+    private var authErrorReceiver: BroadcastReceiver? = null
+    private var stopAllReceiver: BroadcastReceiver? = null
 
     private val reqNotifPerm = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -148,11 +152,17 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         registerMessageReceiver()
+        registerConnectionStateReceiver()
+        registerAuthErrorReceiver()
+        registerStopAllReceiver()
     }
 
     override fun onStop() {
         super.onStop()
         unregisterMessageReceiver()
+        unregisterConnectionStateReceiver()
+        unregisterAuthErrorReceiver()
+        unregisterStopAllReceiver()
     }
 
     private fun registerMessageReceiver() {
@@ -177,6 +187,91 @@ class MainActivity : ComponentActivity() {
         messageReceiver?.let {
             LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
             messageReceiver = null
+        }
+    }
+
+    private fun registerConnectionStateReceiver() {
+        connectionStateReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == "CONNECTION_STATE") {
+                    val status = intent.getStringExtra("state_status") ?: ""
+                    val stateMessage = intent.getStringExtra("state_message") ?: ""
+                    Log.d("MainActivity", "Connection state received: status=$status, message=$stateMessage")
+                    
+                    // Store connection status persistently
+                    if (status.isNotEmpty() && stateMessage.isNotEmpty()) {
+                        lifecycleScope.launch {
+                            when (status.uppercase()) {
+                                "CONNECTED" -> store.setConnected(stateMessage)
+                                "DISCONNECTED" -> store.setDisconnected(stateMessage)
+                                "ERROR" -> store.setConnectionError(stateMessage)
+                                else -> store.setConnectionStatus(status, stateMessage)
+                            }
+                        }
+                    }
+                    
+                    // The ViewModel will load the persisted status automatically
+                }
+            }
+        }
+        val filter = IntentFilter("CONNECTION_STATE")
+        Log.d("MainActivity", "Registering CONNECTION_STATE receiver")
+        LocalBroadcastManager.getInstance(this).registerReceiver(connectionStateReceiver!!, filter)
+    }
+
+    private fun unregisterConnectionStateReceiver() {
+        connectionStateReceiver?.let {
+            LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
+            connectionStateReceiver = null
+        }
+    }
+
+    private fun registerAuthErrorReceiver() {
+        authErrorReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == "AUTH_ERROR") {
+                    val errorMessage = intent.getStringExtra("error_message") ?: ""
+                    Log.d("MainActivity", "Auth error received: $errorMessage")
+                    // Store auth error persistently
+                    lifecycleScope.launch {
+                        store.setConnectionError(errorMessage)
+                    }
+                }
+            }
+        }
+        val filter = IntentFilter("AUTH_ERROR")
+        LocalBroadcastManager.getInstance(this).registerReceiver(authErrorReceiver!!, filter)
+    }
+
+    private fun unregisterAuthErrorReceiver() {
+        authErrorReceiver?.let {
+            LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
+            authErrorReceiver = null
+        }
+    }
+
+    private fun registerStopAllReceiver() {
+        stopAllReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == MessagingService.ACTION_STOP_ALL) {
+                    Log.d("MainActivity", "STOP_ALL_CONNECTIONS received, stopping all services")
+                    // Stop all services
+                    stopService(Intent(this@MainActivity, MessagingService::class.java))
+                    // Clear connection status
+                    lifecycleScope.launch {
+                        store.clearConnectionStatus()
+                    }
+                }
+            }
+        }
+        val filter = IntentFilter(MessagingService.ACTION_STOP_ALL)
+        LocalBroadcastManager.getInstance(this).registerReceiver(stopAllReceiver!!, filter)
+    }
+
+    private fun unregisterStopAllReceiver() {
+        stopAllReceiver?.let {
+            LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
+            stopAllReceiver = null
         }
     }
 

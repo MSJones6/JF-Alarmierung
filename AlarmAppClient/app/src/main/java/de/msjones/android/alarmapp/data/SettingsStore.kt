@@ -55,6 +55,9 @@ data class ServerSettings(
 object SettingsKeys {
     val CONNECTIONS = stringPreferencesKey("connections")
     val ACTIVE_CONNECTION_ID = stringPreferencesKey("active_connection_id")
+    val CONNECTION_STATUS = stringPreferencesKey("connection_status") // "connected", "disconnected", "error"
+    val CONNECTION_STATUS_MESSAGE = stringPreferencesKey("connection_status_message")
+    val CONNECTION_STATUS_TIMESTAMP = stringPreferencesKey("connection_status_timestamp")
 }
 
 class SettingsStore(private val context: Context) {
@@ -117,6 +120,47 @@ class SettingsStore(private val context: Context) {
     suspend fun clearActiveConnection() {
         context.dataStore.edit { prefs ->
             prefs.remove(SettingsKeys.ACTIVE_CONNECTION_ID)
+        }
+    }
+
+    // Connection status persistence
+    val connectionStatus: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[SettingsKeys.CONNECTION_STATUS]
+    }
+
+    val connectionStatusMessage: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[SettingsKeys.CONNECTION_STATUS_MESSAGE]
+    }
+
+    val connectionStatusTimestamp: Flow<Long?> = context.dataStore.data.map { prefs ->
+        prefs[SettingsKeys.CONNECTION_STATUS_TIMESTAMP]?.toLongOrNull()
+    }
+
+    suspend fun setConnectionStatus(status: String, message: String) {
+        context.dataStore.edit { prefs ->
+            prefs[SettingsKeys.CONNECTION_STATUS] = status
+            prefs[SettingsKeys.CONNECTION_STATUS_MESSAGE] = message
+            prefs[SettingsKeys.CONNECTION_STATUS_TIMESTAMP] = System.currentTimeMillis().toString()
+        }
+    }
+
+    suspend fun setConnected(message: String = "Verbunden") {
+        setConnectionStatus("connected", message)
+    }
+
+    suspend fun setDisconnected(message: String = "Getrennt") {
+        setConnectionStatus("disconnected", message)
+    }
+
+    suspend fun setConnectionError(message: String) {
+        setConnectionStatus("error", message)
+    }
+
+    suspend fun clearConnectionStatus() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(SettingsKeys.CONNECTION_STATUS)
+            prefs.remove(SettingsKeys.CONNECTION_STATUS_MESSAGE)
+            prefs.remove(SettingsKeys.CONNECTION_STATUS_TIMESTAMP)
         }
     }
 

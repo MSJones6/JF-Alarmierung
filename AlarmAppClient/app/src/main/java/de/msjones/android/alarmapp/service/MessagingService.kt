@@ -2,9 +2,11 @@ package de.msjones.android.alarmapp.service
 
 import android.content.Intent
 import android.os.IBinder
+import android.util.Log
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import de.msjones.android.alarmapp.data.SettingsStore
 import de.msjones.android.alarmapp.util.NotificationHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -13,6 +15,7 @@ import kotlinx.coroutines.launch
 class MessagingService : LifecycleService() {
 
     private lateinit var helper: NotificationHelper
+    private lateinit var settingsStore: SettingsStore
     private var mqttClientWrapper: MqttClientWrapper? = null
     private var job: Job? = null
 
@@ -23,11 +26,13 @@ class MessagingService : LifecycleService() {
         const val EXTRA_PASSWORD = "password"
         const val EXTRA_TOPIC = "topic"
         const val EXTRA_CONNECTION_ID = "connection_id"
+        const val ACTION_STOP_ALL = "STOP_ALL_CONNECTIONS"
     }
 
     override fun onCreate() {
         super.onCreate()
         helper = NotificationHelper(this)
+        settingsStore = SettingsStore(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -55,7 +60,10 @@ class MessagingService : LifecycleService() {
             }
 
             val serverUri = "tcp://${host}:${port}"
-
+            
+            // Disconnect existing client if any
+            mqttClientWrapper?.disconnect()
+            
             mqttClientWrapper = MqttClientWrapper(
                 context = this@MessagingService,
                 lifecycleOwner = this@MessagingService,
@@ -70,8 +78,43 @@ class MessagingService : LifecycleService() {
                     }
                 },
                 onState = { state ->
+                    Log.d("MessagingService", "onState called with: $state")
                     lifecycleScope.launch(Dispatchers.Main) {
-                        helper.updateServiceNotification(state)
+                        // Parse status prefix
+                        val (status, message) = if (state.contains(":")) {
+                            val parts = state.split(":", limit = 2)
+                            parts[0] to parts[1]
+                        } else {
+                            "INFO" to state
+                        }
+                        
+                        Log.d("MessagingService", "Parsed status: $status, message: $message")
+                        
+                        // Store connection status persistently
+                        when (status.uppercase()) {
+                            "CONNECTED" -> settingsStore.setConnected(message)
+                            "DISCONNECTED" -> settingsStore.setDisconnected(message)
+                            "ERROR" -> {
+                                settingsStore.setConnectionError(message)
+                                // Broadcast stop all connections event
+                                lifecycleScope.launch {
+                                    Log.d("MessagingService", "Broadcasting STOP_ALL_CONNECTIONS due to error")
+                                    val stopIntent = Intent(ACTION_STOP_ALL)
+                                    LocalBroadcastManager.getInstance(this@MessagingService).sendBroadcast(stopIntent)
+                                }
+                            }
+                            else -> settingsStore.setConnectionStatus(status, message)
+                        }
+                        
+                        // Update notification
+                        helper.updateServiceNotification(message)
+                        
+                        // Broadcast state to UI
+                        val intent = Intent("CONNECTION_STATE")
+                        intent.putExtra("state_status", status)
+                        intent.putExtra("state_message", message)
+                        LocalBroadcastManager.getInstance(this@MessagingService).sendBroadcast(intent)
+                        Log.d("MessagingService", "Broadcast sent: CONNECTION_STATE with status: $status, message: $message")
                     }
                 },
                 onAuthError = { errorMessage ->
