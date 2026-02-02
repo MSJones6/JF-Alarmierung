@@ -11,6 +11,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.msjones.android.alarmapp.data.ServerSettings
@@ -48,9 +50,8 @@ class MainActivity : ComponentActivity() {
         }
 
         lifecycleScope.launch {
-            val initial: ServerSettings = try {
-                store.flow.first()
-            } catch (e: Exception) {
+            // Initialize default connection if empty
+            store.initializeDefaultIfEmpty(
                 ServerSettings(
                     host = "localhost",
                     port = 1883,
@@ -58,42 +59,86 @@ class MainActivity : ComponentActivity() {
                     password = "guest",
                     topic = "JF/Alarm"
                 )
-            }
+            )
+        }
 
-            setContent {
-                JFAlarmTheme {
-                    val navController = rememberNavController()
-                    msgViewModel = viewModel()
+        setContent {
+            JFAlarmTheme {
+                val navController = rememberNavController()
+                msgViewModel = viewModel()
 
-                    NavHost(navController = navController, startDestination = "messages") {
-                        composable("messages") {
-                            MessageListScreen(
-                                viewModel = msgViewModel,
-                                onSettingsClick = {
-                                    navController.navigate("settings")
+                val connections by store.flow.collectAsState(initial = emptyList())
+                val activeConnectionId by store.activeConnectionId.collectAsState(initial = null)
+
+                NavHost(navController = navController, startDestination = "messages") {
+                    composable("messages") {
+                        MessageListScreen(
+                            viewModel = msgViewModel,
+                            onSettingsClick = {
+                                navController.navigate("settings")
+                            }
+                        )
+                    }
+                    composable("settings") {
+                        SettingsScreen(
+                            connections = connections,
+                            activeConnectionId = activeConnectionId,
+                            onSaveConnection = { s ->
+                                lifecycleScope.launch {
+                                    store.saveConnection(s)
+                                    // Set as active if it's the first connection
+                                    if (connections.isEmpty()) {
+                                        store.setActiveConnection(s.id)
+                                    }
                                 }
-                            )
-                        }
-                        composable("settings") {
-                            SettingsScreen(
-                                initial = initial,
-                                onSave = { s -> lifecycleScope.launch { store.save(s) } },
-                                onStartService = { startMessagingService() },
-                                onStopService = {
-                                    stopService(
-                                        Intent(
-                                            this@MainActivity,
-                                            MessagingService::class.java
-                                        )
+                            },
+                            onDeleteConnection = { id ->
+                                lifecycleScope.launch {
+                                    store.deleteConnection(id)
+                                    // If deleted connection was active, clear it
+                                    if (activeConnectionId == id) {
+                                        store.clearActiveConnection()
+                                    }
+                                }
+                            },
+                            onSetActiveConnection = { id ->
+                                lifecycleScope.launch {
+                                    // Update isActive field for all connections
+                                    val allConnections = store.flow.first()
+                                    for (connection in allConnections) {
+                                        val updated = connection.copy(isActive = connection.id == id)
+                                        store.saveConnection(updated)
+                                    }
+                                    store.setActiveConnection(id)
+                                }
+                            },
+                            onStartAllServices = {
+                                // Start service for each connection
+                                connections.forEach { connection ->
+                                    startMessagingService(connection)
+                                }
+                            },
+                            onStopAllServices = {
+                                // Stop all services by sending stop intent for each
+                                stopService(
+                                    Intent(
+                                        this@MainActivity,
+                                        MessagingService::class.java
                                     )
-                                },
-                                onServiceFailed = {
-                                    // Service failed to start (e.g., auth error)
-                                    // The switch will be reset by the broadcast receiver
-                                },
-                                isServiceRunning = isMessagingServiceRunning()
-                            )
-                        }
+                                )
+                            },
+                            onServiceFailed = {
+                                // Service failed to start (e.g., auth error)
+                                // Stop all services
+                                stopService(
+                                    Intent(
+                                        this@MainActivity,
+                                        MessagingService::class.java
+                                    )
+                                )
+                            },
+                            isServiceRunning = isMessagingServiceRunning()
+                        )
                     }
                 }
             }
@@ -145,8 +190,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startMessagingService() {
-        val intent = Intent(this, MessagingService::class.java)
+    private fun startMessagingService(settings: ServerSettings) {
+        val intent = Intent(this, MessagingService::class.java).apply {
+            putExtra(MessagingService.EXTRA_HOST, settings.host)
+            putExtra(MessagingService.EXTRA_PORT, settings.port)
+            putExtra(MessagingService.EXTRA_USERNAME, settings.username)
+            putExtra(MessagingService.EXTRA_PASSWORD, settings.password)
+            putExtra(MessagingService.EXTRA_TOPIC, settings.topic)
+            putExtra(MessagingService.EXTRA_CONNECTION_ID, settings.id)
+        }
         startForegroundService(intent)
     }
 }

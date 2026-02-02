@@ -4,7 +4,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,8 +15,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Snackbar
@@ -32,27 +49,40 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import de.msjones.android.alarmapp.data.ServerSettings
 
 @Composable
 fun SettingsScreen(
-    initial: ServerSettings,
-    onSave: (ServerSettings) -> Unit,
-    onStartService: () -> Unit,
-    onStopService: () -> Unit,
+    connections: List<ServerSettings>,
+    activeConnectionId: String?,
+    onSaveConnection: (ServerSettings) -> Unit,
+    onDeleteConnection: (String) -> Unit,
+    onSetActiveConnection: (String) -> Unit,
+    onStartAllServices: () -> Unit,
+    onStopAllServices: () -> Unit,
     onServiceFailed: () -> Unit = {},
     isServiceRunning: Boolean = false,
 ) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var authErrorMessage by remember { mutableStateOf<String?>(null) }
-
-    // Service enabled state - must be declared before receiver to be accessible
+    var duplicateTopicMessage by remember { mutableStateOf<String?>(null) }
     var serviceEnabled by remember(isServiceRunning) { mutableStateOf(isServiceRunning) }
+
+    // Edit mode state
+    var editingConnection by remember { mutableStateOf<ServerSettings?>(null) }
+    var host by remember { mutableStateOf("") }
+    var port by remember { mutableStateOf("1883") }
+    var user by remember { mutableStateOf("") }
+    var pass by remember { mutableStateOf("") }
+    var topic by remember { mutableStateOf("JF/Alarm") }
 
     // Register broadcast receiver for auth errors
     val authErrorReceiver = remember {
@@ -66,18 +96,22 @@ fun SettingsScreen(
         }
     }
 
-    // Show snackbar and reset switch when auth error message changes
     LaunchedEffect(authErrorMessage) {
         authErrorMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
-            authErrorMessage = null  // Reset after showing
-            // Reset the service switch and call failure callback
+            authErrorMessage = null
             serviceEnabled = false
             onServiceFailed()
         }
     }
 
-    // Register and unregister the receiver
+    LaunchedEffect(duplicateTopicMessage) {
+        duplicateTopicMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            duplicateTopicMessage = null
+        }
+    }
+
     LaunchedEffect(Unit) {
         val filter = IntentFilter("AUTH_ERROR")
         LocalBroadcastManager.getInstance(context).registerReceiver(authErrorReceiver, filter)
@@ -89,11 +123,29 @@ fun SettingsScreen(
         }
     }
 
-    var host by remember { mutableStateOf(initial.host) }
-    var port by remember { mutableStateOf(initial.port.toString()) }
-    var user by remember { mutableStateOf(initial.username) }
-    var pass by remember { mutableStateOf(initial.password) }
-    var topic by remember { mutableStateOf(initial.topic) }
+    // Load connection into form when editing
+    LaunchedEffect(editingConnection) {
+        editingConnection?.let { conn ->
+            host = conn.host
+            port = conn.port.toString()
+            user = conn.username
+            pass = conn.password
+            topic = conn.topic
+        }
+    }
+
+    fun resetForm() {
+        editingConnection = null
+        host = ""
+        port = "1883"
+        user = ""
+        pass = ""
+        topic = "JF/Alarm"
+    }
+
+    fun loadConnectionForEdit(connection: ServerSettings) {
+        editingConnection = connection
+    }
 
     Surface(color = MaterialTheme.colorScheme.background) {
         Column(Modifier
@@ -102,6 +154,7 @@ fun SettingsScreen(
             .padding(16.dp)) {
             Text("Server Einstellungen", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(12.dp))
+
             OutlinedTextField(host, { host = it }, label = { Text("Host") }, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(port, { port = it.filter { ch -> ch.isDigit() } }, label = { Text("Port") }, modifier = Modifier.fillMaxWidth())
@@ -116,36 +169,87 @@ fun SettingsScreen(
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = {
-                    onSave(
-                        ServerSettings(
-                            host = host.trim(),
-                            port = port.toIntOrNull() ?: 1883,
-                            username = user.trim(),
-                            password = pass,
-                            topic = topic.trim().ifEmpty { "JF/Alarm" }
-                        )
+                    val trimmedTopic = topic.trim().ifEmpty { "JF/Alarm" }
+                    
+                    // Check for duplicate topic (excluding the current connection when editing)
+                    val existingTopic = connections.any { 
+                        it.topic.equals(trimmedTopic, ignoreCase = true) && 
+                        it.id != editingConnection?.id 
+                    }
+                    
+                    if (existingTopic) {
+                        duplicateTopicMessage = "Diese Queue-Name existiert bereits!"
+                        return@Button
+                    }
+
+                    val settings = ServerSettings(
+                        id = editingConnection?.id ?: java.util.UUID.randomUUID().toString(),
+                        host = host.trim(),
+                        port = port.toIntOrNull() ?: 1883,
+                        username = user.trim(),
+                        password = pass,
+                        topic = trimmedTopic,
+                        isActive = activeConnectionId == editingConnection?.id || (editingConnection == null && connections.isEmpty())
                     )
-                }) { Text("Speichern") }
+                    onSaveConnection(settings)
+                    resetForm()
+                }) { Text(if (editingConnection != null) "Aktualisieren" else "Hinzufügen") }
+
+                if (editingConnection != null) {
+                    TextButton(onClick = { resetForm() }) {
+                        Text("Abbrechen")
+                    }
+                }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(24.dp))
+            
+            // Global service control
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Dienst aktiv", style = MaterialTheme.typography.bodyLarge)
+                Column {
+                    Text("Dienst aktiv", style = MaterialTheme.typography.bodyLarge)
+                    if (isServiceRunning) {
+                        Text(
+                            text = "${connections.size} Verbindungen aktiv",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
                 Switch(
                     checked = serviceEnabled,
                     onCheckedChange = { enabled ->
                         serviceEnabled = enabled
                         if (enabled) {
-                            onStartService()
+                            onStartAllServices()
                         } else {
-                            onStopService()
+                            onStopAllServices()
                         }
                     }
                 )
+            }
+
+            Spacer(Modifier.height(16.dp))
+            Text("Gespeicherte Verbindungen", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                items(connections) { connection ->
+                    ConnectionCard(
+                        connection = connection,
+                        isActive = connection.id == activeConnectionId,
+                        onEdit = { loadConnectionForEdit(connection) },
+                        onDelete = { onDeleteConnection(connection.id) },
+                        onActivate = { onSetActiveConnection(connection.id) }
+                    )
+                }
             }
 
             // Show auth error snackbar
@@ -162,6 +266,92 @@ fun SettingsScreen(
                 ) {
                     Text(data.visuals.message)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConnectionCard(
+    connection: ServerSettings,
+    isActive: Boolean,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onActivate: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onActivate() },
+        colors = CardDefaults.cardColors(
+            containerColor = if (isActive) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Dns,
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+                tint = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = connection.host.ifEmpty { "Unbenannt" },
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                Text(
+                    text = "${connection.host}:${connection.port}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (connection.topic.isNotEmpty()) {
+                    Text(
+                        text = "Topic: ${connection.topic}",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Active indicator
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .background(
+                        color = if (isActive) MaterialTheme.colorScheme.primary else Color.Gray,
+                        shape = androidx.compose.foundation.shape.CircleShape
+                    )
+            )
+
+            Spacer(Modifier.width(8.dp))
+
+            // Edit button
+            IconButton(onClick = onEdit) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Bearbeiten",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // Delete button
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Löschen",
+                    tint = MaterialTheme.colorScheme.error
+                )
             }
         }
     }

@@ -5,11 +5,9 @@ import android.os.IBinder
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import de.msjones.android.alarmapp.data.SettingsStore
 import de.msjones.android.alarmapp.util.NotificationHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class MessagingService : LifecycleService() {
@@ -17,6 +15,15 @@ class MessagingService : LifecycleService() {
     private lateinit var helper: NotificationHelper
     private var mqttClientWrapper: MqttClientWrapper? = null
     private var job: Job? = null
+
+    companion object {
+        const val EXTRA_HOST = "host"
+        const val EXTRA_PORT = "port"
+        const val EXTRA_USERNAME = "username"
+        const val EXTRA_PASSWORD = "password"
+        const val EXTRA_TOPIC = "topic"
+        const val EXTRA_CONNECTION_ID = "connection_id"
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -32,26 +39,31 @@ class MessagingService : LifecycleService() {
             helper.buildServiceNotification("Service startet …")
         )
 
-        val store = SettingsStore(this)
+        // Read settings from intent
+        val host = intent?.getStringExtra(EXTRA_HOST)
+        val port = intent?.getIntExtra(EXTRA_PORT, 1883) ?: 1883
+        val username = intent?.getStringExtra(EXTRA_USERNAME) ?: ""
+        val password = intent?.getStringExtra(EXTRA_PASSWORD) ?: ""
+        val topic = intent?.getStringExtra(EXTRA_TOPIC) ?: "JF/Alarm"
+        val connectionId = intent?.getStringExtra(EXTRA_CONNECTION_ID) ?: "unknown"
 
         // MQTT-Verbindung im Hintergrund aufbauen
         job = lifecycleScope.launch(Dispatchers.IO) {
-            val s = store.flow.first()  // Einstellungen laden
-            if (s.host.isBlank()) {
+            if (host.isNullOrBlank()) {
                 helper.updateServiceNotification("Bitte Serverdaten speichern.")
                 return@launch
             }
 
-            val serverUri = "tcp://${s.host}:${s.port}"
+            val serverUri = "tcp://${host}:${port}"
 
             mqttClientWrapper = MqttClientWrapper(
                 context = this@MessagingService,
                 lifecycleOwner = this@MessagingService,
                 serverUri = serverUri,
                 clientId = "AndroidClient-${System.currentTimeMillis()}",
-                user = s.username,
-                pass = s.password,
-                topic = s.topic,
+                user = username,
+                pass = password,
+                topic = topic,
                 onMessage = { msg ->
                     lifecycleScope.launch(Dispatchers.Main) {
                         handleIncomingMessage(msg)
@@ -64,10 +76,11 @@ class MessagingService : LifecycleService() {
                 },
                 onAuthError = { errorMessage ->
                     lifecycleScope.launch(Dispatchers.Main) {
-                        helper.updateServiceNotification(errorMessage)
+                        val detailedError = "Verbindung $host:$port - $errorMessage"
+                        helper.updateServiceNotification(detailedError)
                         // Broadcast auth error to UI
                         val intent = Intent("AUTH_ERROR")
-                        intent.putExtra("error_message", errorMessage)
+                        intent.putExtra("error_message", detailedError)
                         LocalBroadcastManager.getInstance(this@MessagingService).sendBroadcast(intent)
                     }
                 }
