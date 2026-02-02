@@ -15,7 +15,7 @@ class MessagingService : LifecycleService() {
 
     private lateinit var helper: NotificationHelper
     private lateinit var settingsStore: SettingsStore
-    private var mqttClientWrapper: MqttClientWrapper? = null
+    private val clientWrappers = mutableMapOf<String, MqttClientWrapper>()
     private var job: Job? = null
 
     companion object {
@@ -61,13 +61,13 @@ class MessagingService : LifecycleService() {
             val serverUri = "tcp://${host}:${port}"
             
             // Disconnect existing client if any
-            mqttClientWrapper?.disconnect()
+            clientWrappers[connectionId]?.disconnectAndWait()
             
-            mqttClientWrapper = MqttClientWrapper(
+            clientWrappers[connectionId] = MqttClientWrapper(
                 context = this@MessagingService,
                 lifecycleOwner = this@MessagingService,
                 serverUri = serverUri,
-                clientId = "AndroidClient-${System.currentTimeMillis()}",
+                clientId = "AndroidClient-${connectionId}-${System.nanoTime()}",
                 user = username,
                 pass = password,
                 topic = topic,
@@ -124,7 +124,7 @@ class MessagingService : LifecycleService() {
             )
 
             // Verbindung aufbauen
-            mqttClientWrapper?.connect()
+            clientWrappers[connectionId]?.connect()
         }
 
         return START_STICKY
@@ -133,7 +133,8 @@ class MessagingService : LifecycleService() {
     override fun onDestroy() {
         job?.cancel()
         lifecycleScope.launch(Dispatchers.IO) {
-            mqttClientWrapper?.disconnect()
+            clientWrappers.values.forEach { it.disconnectAndWait() }
+            clientWrappers.clear()
         }
         super.onDestroy()
     }

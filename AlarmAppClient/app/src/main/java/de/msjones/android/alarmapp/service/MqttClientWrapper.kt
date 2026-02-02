@@ -7,7 +7,6 @@ import com.hivemq.client.mqtt.MqttClient
 import com.hivemq.client.mqtt.mqtt3.Mqtt3AsyncClient
 import com.hivemq.client.mqtt.mqtt3.message.connect.connack.Mqtt3ConnAck
 import com.hivemq.client.mqtt.mqtt3.message.publish.Mqtt3Publish
-
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import java.nio.charset.StandardCharsets
@@ -130,7 +129,7 @@ class MqttClientWrapper(
         }
     }
 
-    suspend fun disconnect() {
+    suspend fun disconnectAndWait() {
         try {
             client?.disconnect()?.await()
             isConnected.set(false)
