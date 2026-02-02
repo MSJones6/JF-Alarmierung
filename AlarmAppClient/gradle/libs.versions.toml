@@ -13,6 +13,7 @@ lifecycleService = "2.9.4"
 lifecycleViewmodelCompose = "2.9.4"
 localbroadcastmanager = "1.1.0"
 material3 = "1.3.2"
+composeIconsExtended = "1.7.6"
 navigationCompose = "2.9.4"
 workRuntimeKtx = "2.10.4"
 
@@ -20,6 +21,7 @@ workRuntimeKtx = "2.10.4"
 accompanist-systemuicontroller = { module = "com.google.accompanist:accompanist-systemuicontroller", version.ref = "accompanistSystemuicontroller" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityComposeVersion" }
 androidx-compose-material3 = { module = "androidx.compose.material3:material3", version.ref = "material3" }
+androidx-compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "composeIconsExtended" }
 androidx-compose-ui = { module = "androidx.compose.ui:ui" }
 androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
