@@ -21,25 +21,23 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -52,12 +50,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import de.msjones.android.alarmapp.data.ServerSettings
 
+sealed class SettingsScreenState {
+    data object List : SettingsScreenState()
+    data class Edit(val connection: ServerSettings) : SettingsScreenState()
+    data object Add : SettingsScreenState()
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     connections: List<ServerSettings>,
@@ -73,16 +77,8 @@ fun SettingsScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var authErrorMessage by remember { mutableStateOf<String?>(null) }
-    var duplicateTopicMessage by remember { mutableStateOf<String?>(null) }
     var serviceEnabled by remember(isServiceRunning) { mutableStateOf(isServiceRunning) }
-
-    // Edit mode state
-    var editingConnection by remember { mutableStateOf<ServerSettings?>(null) }
-    var host by remember { mutableStateOf("") }
-    var port by remember { mutableStateOf("1883") }
-    var user by remember { mutableStateOf("") }
-    var pass by remember { mutableStateOf("") }
-    var topic by remember { mutableStateOf("JF/Alarm") }
+    var screenState by remember { mutableStateOf<SettingsScreenState>(SettingsScreenState.List) }
 
     // Register broadcast receiver for auth errors
     val authErrorReceiver = remember {
@@ -102,6 +98,7 @@ fun SettingsScreen(
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action == "STOP_ALL_CONNECTIONS") {
                     serviceEnabled = false
+                    screenState = SettingsScreenState.List
                 }
             }
         }
@@ -116,17 +113,10 @@ fun SettingsScreen(
         }
     }
 
-    LaunchedEffect(duplicateTopicMessage) {
-        duplicateTopicMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            duplicateTopicMessage = null
-        }
-    }
-
     LaunchedEffect(Unit) {
         val authFilter = IntentFilter("AUTH_ERROR")
         LocalBroadcastManager.getInstance(context).registerReceiver(authErrorReceiver, authFilter)
-        
+
         val stopAllFilter = IntentFilter("STOP_ALL_CONNECTIONS")
         LocalBroadcastManager.getInstance(context).registerReceiver(stopAllReceiver, stopAllFilter)
     }
@@ -138,87 +128,88 @@ fun SettingsScreen(
         }
     }
 
-    // Load connection into form when editing
-    LaunchedEffect(editingConnection) {
-        editingConnection?.let { conn ->
-            host = conn.host
-            port = conn.port.toString()
-            user = conn.username
-            pass = conn.password
-            topic = conn.topic
+    // Show form screen when in edit or add mode
+    when (val state = screenState) {
+        is SettingsScreenState.Add -> {
+            ConnectionFormScreen(
+                existingConnections = connections,
+                editingConnection = null,
+                onSave = { settings ->
+                    onSaveConnection(settings)
+                    screenState = SettingsScreenState.List
+                },
+                onCancel = { screenState = SettingsScreenState.List }
+            )
+        }
+
+        is SettingsScreenState.Edit -> {
+            ConnectionFormScreen(
+                existingConnections = connections,
+                editingConnection = state.connection,
+                onSave = { settings ->
+                    onSaveConnection(settings)
+                    screenState = SettingsScreenState.List
+                },
+                onCancel = { screenState = SettingsScreenState.List }
+            )
+        }
+
+        SettingsScreenState.List -> {
+            SettingsListContent(
+                connections = connections,
+                activeConnectionId = activeConnectionId,
+                serviceEnabled = serviceEnabled,
+                isServiceRunning = isServiceRunning,
+                snackbarHostState = snackbarHostState,
+                onStartAllServices = onStartAllServices,
+                onStopAllServices = onStopAllServices,
+                onAddConnection = { screenState = SettingsScreenState.Add },
+                onEditConnection = { screenState = SettingsScreenState.Edit(it) },
+                onDeleteConnection = onDeleteConnection,
+                onSetActiveConnection = onSetActiveConnection
+            )
         }
     }
+}
 
-    fun resetForm() {
-        editingConnection = null
-        host = ""
-        port = "1883"
-        user = ""
-        pass = ""
-        topic = "JF/Alarm"
-    }
-
-    fun loadConnectionForEdit(connection: ServerSettings) {
-        editingConnection = connection
-    }
-
-    Surface(color = MaterialTheme.colorScheme.background) {
-        Column(Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .padding(16.dp)) {
-            Text("Server Einstellungen", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedTextField(host, { host = it }, label = { Text("Host") }, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(port, { port = it.filter { ch -> ch.isDigit() } }, label = { Text("Port") }, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(user, { user = it }, label = { Text("Username") }, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(pass, { pass = it }, label = { Text("Passwort") }, modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation())
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(topic, { topic = it }, label = { Text("Queue-Name") }, modifier = Modifier.fillMaxWidth())
-
-            Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = {
-                    val trimmedTopic = topic.trim().ifEmpty { "JF/Alarm" }
-                    
-                    // Check for duplicate topic (excluding the current connection when editing)
-                    val existingTopic = connections.any { 
-                        it.topic.equals(trimmedTopic, ignoreCase = true) && 
-                        it.id != editingConnection?.id 
-                    }
-                    
-                    if (existingTopic) {
-                        duplicateTopicMessage = "Diese Queue-Name existiert bereits!"
-                        return@Button
-                    }
-
-                    val settings = ServerSettings(
-                        id = editingConnection?.id ?: java.util.UUID.randomUUID().toString(),
-                        host = host.trim(),
-                        port = port.toIntOrNull() ?: 1883,
-                        username = user.trim(),
-                        password = pass,
-                        topic = trimmedTopic,
-                        isActive = activeConnectionId == editingConnection?.id || (editingConnection == null && connections.isEmpty())
-                    )
-                    onSaveConnection(settings)
-                    resetForm()
-                }) { Text(if (editingConnection != null) "Aktualisieren" else "Hinzufügen") }
-
-                if (editingConnection != null) {
-                    TextButton(onClick = { resetForm() }) {
-                        Text("Abbrechen")
-                    }
-                }
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsListContent(
+    connections: List<ServerSettings>,
+    activeConnectionId: String?,
+    serviceEnabled: Boolean,
+    isServiceRunning: Boolean,
+    snackbarHostState: SnackbarHostState,
+    onStartAllServices: () -> Unit,
+    onStopAllServices: () -> Unit,
+    onAddConnection: () -> Unit,
+    onEditConnection: (ServerSettings) -> Unit,
+    onDeleteConnection: (String) -> Unit,
+    onSetActiveConnection: (String) -> Unit
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Server Einstellungen") }
+            )
+        },
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState) { data ->
+                Snackbar(action = {
+                    androidx.compose.material3.TextButton(
+                        onClick = { snackbarHostState.currentSnackbarData?.dismiss() }
+                    ) { Text("OK") }
+                }) { Text(data.visuals.message) }
             }
-
-            Spacer(Modifier.height(24.dp))
-            
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp)
+                .statusBarsPadding()
+        ) {
             // Global service control
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -235,10 +226,16 @@ fun SettingsScreen(
                         )
                     }
                 }
+                var switchChecked by remember { mutableStateOf(serviceEnabled) }
+
+                LaunchedEffect(serviceEnabled) {
+                    switchChecked = serviceEnabled
+                }
+
                 Switch(
-                    checked = serviceEnabled,
+                    checked = switchChecked,
                     onCheckedChange = { enabled ->
-                        serviceEnabled = enabled
+                        switchChecked = enabled
                         if (enabled) {
                             onStartAllServices()
                         } else {
@@ -248,8 +245,24 @@ fun SettingsScreen(
                 )
             }
 
-            Spacer(Modifier.height(16.dp))
-            Text("Gespeicherte Verbindungen", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(24.dp))
+
+            // Header with title and add button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Gespeicherte Verbindungen", style = MaterialTheme.typography.titleMedium)
+                IconButton(onClick = onAddConnection) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Neue Verbindung hinzufügen",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
             Spacer(Modifier.height(8.dp))
 
             LazyColumn(
@@ -260,26 +273,10 @@ fun SettingsScreen(
                     ConnectionCard(
                         connection = connection,
                         isActive = connection.id == activeConnectionId,
-                        onEdit = { loadConnectionForEdit(connection) },
+                        onEdit = { onEditConnection(connection) },
                         onDelete = { onDeleteConnection(connection.id) },
                         onActivate = { onSetActiveConnection(connection.id) }
                     )
-                }
-            }
-
-            // Show auth error snackbar
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier.padding(16.dp)
-            ) { data ->
-                Snackbar(
-                    action = {
-                        TextButton(onClick = { snackbarHostState.currentSnackbarData?.dismiss() }) {
-                            Text("OK")
-                        }
-                    }
-                ) {
-                    Text(data.visuals.message)
                 }
             }
         }
