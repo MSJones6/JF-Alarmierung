@@ -1,7 +1,6 @@
 package de.msjones.android.alarmapp.ui
 
 import android.app.Application
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.msjones.android.alarmapp.data.AlarmMessage
@@ -50,12 +49,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         initialValue = ConnectionStatus()
     )
 
-    init {
-        Log.d("MessageViewModel", "Initialized, current connection status: ${connectionStatus.value}")
-    }
-
     fun clearConnectionStatus() {
-        Log.d("MessageViewModel", "clearConnectionStatus called")
         viewModelScope.launch {
             settingsStore.clearConnectionStatus()
         }

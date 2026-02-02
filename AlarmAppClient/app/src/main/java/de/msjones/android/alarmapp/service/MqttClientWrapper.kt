@@ -1,7 +1,6 @@
 package de.msjones.android.alarmapp.service
 
 import android.content.Context
-import android.util.Log
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.hivemq.client.mqtt.MqttClient
@@ -50,7 +49,6 @@ class MqttClientWrapper(
             // Check connection result
             if (connAck.returnCode.isError) {
                 val errorMessage = "Verbindung abgelehnt: ${connAck.returnCode}"
-                Log.e("MqttClientWrapper", "Connection error: $errorMessage")
                 
                 // Check if it's an auth error based on return code
                 val returnCode = connAck.returnCode.toString().lowercase()
@@ -76,16 +74,11 @@ class MqttClientWrapper(
 
         } catch (e: Exception) {
             val message = e.message ?: "Unbekannter Fehler"
-            Log.e("MqttClientWrapper", "Connect error: $message", e)
-            
-            // DEBUG: Log exception type for UnknownHostException detection
-            Log.d("MqttClientWrapper", "Exception class: ${e.javaClass.name}")
             
             // Detect if this is an UnknownHostException
             val isUnknownHost = e.javaClass.name.contains("UnknownHostException") ||
                                 message.lowercase().contains("unknown host") ||
                                 message.lowercase().contains("no address associated")
-            Log.d("MqttClientWrapper", "isUnknownHost: $isUnknownHost")
             
             // Detect authentication-specific errors
             val msgLower = message.lowercase()
@@ -100,11 +93,8 @@ class MqttClientWrapper(
                               msgLower.contains("auth")
             
             if (isUnknownHost) {
-                Log.d("MqttClientWrapper", "UnknownHostException detected, calling onState with clear error")
                 onState("ERROR:Verbindungsfehler: Server '$serverUri' nicht erreichbar (UnknownHost)")
-                Log.d("MqttClientWrapper", "onState called with: ERROR:Verbindungsfehler: Server '$serverUri' nicht erreichbar (UnknownHost)")
             } else if (isAuthError) {
-                Log.d("MqttClientWrapper", "Auth error detected, calling onAuthError callback")
                 onAuthError?.invoke("Falscher Benutzername oder Passwort")
             } else {
                 onState("ERROR:Fehler beim Verbinden: $message")
@@ -136,7 +126,6 @@ class MqttClientWrapper(
                 ?.send()
             onState("SUBSCRIBED:Abonniert: $topic")
         } catch (e: Exception) {
-            Log.e("MqttClientWrapper", "Subscribe error: ${e.message}", e)
             onState("ERROR:Fehler beim Abonnieren: ${e.message}")
         }
     }
@@ -147,7 +136,6 @@ class MqttClientWrapper(
             isConnected.set(false)
             onState("DISCONNECTED:Getrennt")
         } catch (e: Exception) {
-            Log.e("MqttClientWrapper", "Disconnect error: ${e.message}", e)
             onState("ERROR:Fehler beim Trennen: ${e.message}")
         }
     }

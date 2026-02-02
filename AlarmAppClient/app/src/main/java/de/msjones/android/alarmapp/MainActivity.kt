@@ -8,7 +8,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -121,6 +120,10 @@ class MainActivity : ComponentActivity() {
                                 connections.forEach { connection ->
                                     startMessagingService(connection)
                                 }
+                                // Broadcast service running state
+                                val intent = Intent("SERVICE_RUNNING_STATE")
+                                intent.putExtra("is_running", true)
+                                LocalBroadcastManager.getInstance(this@MainActivity).sendBroadcast(intent)
                             },
                             onStopAllServices = {
                                 // Stop all services by sending stop intent for each
@@ -130,6 +133,10 @@ class MainActivity : ComponentActivity() {
                                         MessagingService::class.java
                                     )
                                 )
+                                // Broadcast service stopped state
+                                val intent = Intent("SERVICE_RUNNING_STATE")
+                                intent.putExtra("is_running", false)
+                                LocalBroadcastManager.getInstance(this@MainActivity).sendBroadcast(intent)
                             },
                             onServiceFailed = {
                                 // Service failed to start (e.g., auth error)
@@ -140,6 +147,10 @@ class MainActivity : ComponentActivity() {
                                         MessagingService::class.java
                                     )
                                 )
+                                // Broadcast service stopped state
+                                val intent = Intent("SERVICE_RUNNING_STATE")
+                                intent.putExtra("is_running", false)
+                                LocalBroadcastManager.getInstance(this@MainActivity).sendBroadcast(intent)
                             },
                             isServiceRunning = isMessagingServiceRunning()
                         )
@@ -196,7 +207,6 @@ class MainActivity : ComponentActivity() {
                 if (intent?.action == "CONNECTION_STATE") {
                     val status = intent.getStringExtra("state_status") ?: ""
                     val stateMessage = intent.getStringExtra("state_message") ?: ""
-                    Log.d("MainActivity", "Connection state received: status=$status, message=$stateMessage")
                     
                     // Store connection status persistently
                     if (status.isNotEmpty() && stateMessage.isNotEmpty()) {
@@ -215,7 +225,6 @@ class MainActivity : ComponentActivity() {
             }
         }
         val filter = IntentFilter("CONNECTION_STATE")
-        Log.d("MainActivity", "Registering CONNECTION_STATE receiver")
         LocalBroadcastManager.getInstance(this).registerReceiver(connectionStateReceiver!!, filter)
     }
 
@@ -231,7 +240,6 @@ class MainActivity : ComponentActivity() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action == "AUTH_ERROR") {
                     val errorMessage = intent.getStringExtra("error_message") ?: ""
-                    Log.d("MainActivity", "Auth error received: $errorMessage")
                     // Store auth error persistently
                     lifecycleScope.launch {
                         store.setConnectionError(errorMessage)
@@ -254,7 +262,6 @@ class MainActivity : ComponentActivity() {
         stopAllReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action == MessagingService.ACTION_STOP_ALL) {
-                    Log.d("MainActivity", "STOP_ALL_CONNECTIONS received, stopping all services")
                     // Stop all services
                     stopService(Intent(this@MainActivity, MessagingService::class.java))
                     // Clear connection status
