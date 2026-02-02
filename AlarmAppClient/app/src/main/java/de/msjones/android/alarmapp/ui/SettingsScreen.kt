@@ -96,6 +96,17 @@ fun SettingsScreen(
         }
     }
 
+    // Register broadcast receiver for stop all connections (e.g., due to connection error)
+    val stopAllReceiver = remember {
+        object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == "STOP_ALL_CONNECTIONS") {
+                    serviceEnabled = false
+                }
+            }
+        }
+    }
+
     LaunchedEffect(authErrorMessage) {
         authErrorMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
@@ -113,13 +124,17 @@ fun SettingsScreen(
     }
 
     LaunchedEffect(Unit) {
-        val filter = IntentFilter("AUTH_ERROR")
-        LocalBroadcastManager.getInstance(context).registerReceiver(authErrorReceiver, filter)
+        val authFilter = IntentFilter("AUTH_ERROR")
+        LocalBroadcastManager.getInstance(context).registerReceiver(authErrorReceiver, authFilter)
+        
+        val stopAllFilter = IntentFilter("STOP_ALL_CONNECTIONS")
+        LocalBroadcastManager.getInstance(context).registerReceiver(stopAllReceiver, stopAllFilter)
     }
 
     DisposableEffect(Unit) {
         onDispose {
             LocalBroadcastManager.getInstance(context).unregisterReceiver(authErrorReceiver)
+            LocalBroadcastManager.getInstance(context).unregisterReceiver(stopAllReceiver)
         }
     }
 
