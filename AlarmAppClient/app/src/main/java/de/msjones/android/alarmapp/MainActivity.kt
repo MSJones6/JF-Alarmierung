@@ -1,30 +1,37 @@
 package de.msjones.android.alarmapp
 
 import android.Manifest
+import android.app.ActivityManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.Color
-import androidx.core.content.ContextCompat
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
-import com.google.accompanist.systemuicontroller.rememberSystemUiController
+import androidx.lifecycle.viewmodel.compose.viewModel
 import de.msjones.android.alarmapp.data.ServerSettings
 import de.msjones.android.alarmapp.data.SettingsStore
 import de.msjones.android.alarmapp.service.MessagingService
+import de.msjones.android.alarmapp.ui.MessageListScreen
+import de.msjones.android.alarmapp.ui.MessageViewModel
 import de.msjones.android.alarmapp.ui.SettingsScreen
+import de.msjones.android.alarmapp.ui.theme.JFAlarmTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var store: SettingsStore
+    private lateinit var msgViewModel: MessageViewModel
+    private var messageReceiver: BroadcastReceiver? = null
 
     private val reqNotifPerm = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -35,19 +42,12 @@ class MainActivity : ComponentActivity() {
 
         store = SettingsStore(this)
 
-        // StatusBar Farbe + Icons einstellen
-        val window = window
-        window.statusBarColor = ContextCompat.getColor(this, R.color.black) // gewünschte Farbe
-        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false // helle Icons
-        WindowCompat.setDecorFitsSystemWindows(window, true) // Layout startet unterhalb StatusBar
-
         // Benachrichtigungsrechte anfragen (nur ab Android 13)
         if (Build.VERSION.SDK_INT >= 33) {
             reqNotifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
         lifecycleScope.launch {
-            // gespeicherte Werte laden oder Defaults setzen
             val initial: ServerSettings = try {
                 store.flow.first()
             } catch (e: Exception) {
@@ -61,39 +61,85 @@ class MainActivity : ComponentActivity() {
             }
 
             setContent {
-                // Compose UI
-                SettingsScreen(
-                    initial = initial,
-                    onSave = { s -> lifecycleScope.launch { store.save(s) } },
-                    onStartService = { startMessagingService() },
-                    onStopService = {
-                        stopService(Intent(this@MainActivity, MessagingService::class.java))
+                JFAlarmTheme {
+                    val navController = rememberNavController()
+                    msgViewModel = viewModel()
+
+                    NavHost(navController = navController, startDestination = "messages") {
+                        composable("messages") {
+                            MessageListScreen(
+                                viewModel = msgViewModel,
+                                onSettingsClick = {
+                                    navController.navigate("settings")
+                                }
+                            )
+                        }
+                        composable("settings") {
+                            SettingsScreen(
+                                initial = initial,
+                                onSave = { s -> lifecycleScope.launch { store.save(s) } },
+                                onStartService = { startMessagingService() },
+                                onStopService = {
+                                    stopService(
+                                        Intent(
+                                            this@MainActivity,
+                                            MessagingService::class.java
+                                        )
+                                    )
+                                },
+                                isServiceRunning = isMessagingServiceRunning()
+                            )
+                        }
                     }
-                )
+                }
             }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        registerMessageReceiver()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        unregisterMessageReceiver()
+    }
+
+    private fun registerMessageReceiver() {
+        messageReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == "NEW_MESSAGE") {
+                    val message = intent.getStringExtra("message")
+                    message?.let {
+                        msgViewModel.addMessage(it)
+                    }
+                }
+            }
+        }
+        val filter = IntentFilter("NEW_MESSAGE")
+        LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver!!, filter)
+    }
+
+    private fun unregisterMessageReceiver() {
+        messageReceiver?.let {
+            LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
+            messageReceiver = null
+        }
+    }
+
+    private fun isMessagingServiceRunning(): Boolean {
+        val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+
+        @Suppress("DEPRECATION")
+        val services = activityManager.getRunningServices(Int.MAX_VALUE)
+        return services.any { service ->
+            service.service.className == MessagingService::class.java.name
         }
     }
 
     private fun startMessagingService() {
         val intent = Intent(this, MessagingService::class.java)
-        if (Build.VERSION.SDK_INT >= 26) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
-    }
-
-
-    @Composable
-    fun SetStatusBar() {
-        val systemUiController = rememberSystemUiController()
-        val statusBarColor = Color.Black // gewünschte Farbe
-
-        SideEffect {
-            systemUiController.setStatusBarColor(
-                color = statusBarColor,
-                darkIcons = false // false = helle Icons
-            )
-        }
+        startForegroundService(intent)
     }
 }

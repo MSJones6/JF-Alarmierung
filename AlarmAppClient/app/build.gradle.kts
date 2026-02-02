@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "de.msjones.android.alarmapp"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -32,7 +32,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    //composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
+    composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
 
@@ -47,26 +47,30 @@ android {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
+    val composeBom = platform("androidx.compose:compose-bom:2025.01.00")
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
-    implementation("androidx.activity:activity-compose:1.9.2")
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.material3:material3:1.3.0")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    debugImplementation("androidx.compose.ui:ui-tooling")
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.material3)
 
-    implementation("androidx.datastore:datastore-preferences:1.1.1")
-    implementation("androidx.lifecycle:lifecycle-service:2.9.3")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    debugImplementation(libs.androidx.compose.ui.tooling)
 
-    implementation("com.google.accompanist:accompanist-systemuicontroller:0.36.0") // Version prüfen
-    implementation("com.hivemq:hivemq-mqtt-client:1.3.9")
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.lifecycle.service)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.localbroadcastmanager)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.work.runtime.ktx)
+
+    implementation(libs.accompanist.systemuicontroller) // Version prüfen
+    implementation(libs.hivemq.mqtt.client)
     implementation(libs.androidx.appcompat)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation(libs.kotlinx.coroutines.android)
 
-    implementation("com.google.android.material:material:1.10.0")
+
 }

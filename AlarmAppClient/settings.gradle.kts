@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AlarmApp"
+rootProject.name = "JF Alarm App"
 include(":app")
