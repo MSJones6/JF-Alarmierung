@@ -2,7 +2,6 @@ package de.msjones.android.alarmapp.service
 
 import android.content.Intent
 import android.os.IBinder
-import android.util.Log
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
@@ -78,7 +77,6 @@ class MessagingService : LifecycleService() {
                     }
                 },
                 onState = { state ->
-                    Log.d("MessagingService", "onState called with: $state")
                     lifecycleScope.launch(Dispatchers.Main) {
                         // Parse status prefix
                         val (status, message) = if (state.contains(":")) {
@@ -88,8 +86,6 @@ class MessagingService : LifecycleService() {
                             "INFO" to state
                         }
                         
-                        Log.d("MessagingService", "Parsed status: $status, message: $message")
-                        
                         // Store connection status persistently
                         when (status.uppercase()) {
                             "CONNECTED" -> settingsStore.setConnected(message)
@@ -98,7 +94,6 @@ class MessagingService : LifecycleService() {
                                 settingsStore.setConnectionError(message)
                                 // Broadcast stop all connections event
                                 lifecycleScope.launch {
-                                    Log.d("MessagingService", "Broadcasting STOP_ALL_CONNECTIONS due to error")
                                     val stopIntent = Intent(ACTION_STOP_ALL)
                                     LocalBroadcastManager.getInstance(this@MessagingService).sendBroadcast(stopIntent)
                                 }
@@ -114,7 +109,6 @@ class MessagingService : LifecycleService() {
                         intent.putExtra("state_status", status)
                         intent.putExtra("state_message", message)
                         LocalBroadcastManager.getInstance(this@MessagingService).sendBroadcast(intent)
-                        Log.d("MessagingService", "Broadcast sent: CONNECTION_STATE with status: $status, message: $message")
                     }
                 },
                 onAuthError = { errorMessage ->
