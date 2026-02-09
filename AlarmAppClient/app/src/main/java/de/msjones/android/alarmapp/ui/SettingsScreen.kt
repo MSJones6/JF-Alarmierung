@@ -44,6 +44,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -83,7 +84,7 @@ fun SettingsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var authErrorMessage by remember { mutableStateOf<String?>(null) }
     var serviceEnabled by remember(isServiceRunning) { mutableStateOf(isServiceRunning) }
-    var activeConnectionCount by remember { mutableStateOf(0) }
+    var activeConnectionCount by remember { mutableIntStateOf(0) }
     var screenState by remember { mutableStateOf<SettingsScreenState>(SettingsScreenState.List) }
     var scannedConnectionFromQr by remember { mutableStateOf<ServerSettings?>(null) }
 
