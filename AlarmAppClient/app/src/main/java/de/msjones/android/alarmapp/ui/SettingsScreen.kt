@@ -413,7 +413,7 @@ private fun ConnectionCard(
                 tint = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = connection.host.ifEmpty { "Unbenannt" },
                     fontWeight = FontWeight.Bold,
