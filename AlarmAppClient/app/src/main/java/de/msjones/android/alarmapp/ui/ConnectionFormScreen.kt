@@ -40,6 +40,11 @@ import de.msjones.android.alarmapp.data.ServerSettings
 fun ConnectionFormScreen(
     existingConnections: List<ServerSettings>,
     editingConnection: ServerSettings? = null,
+    initialHost: String? = null,
+    initialPort: String? = null,
+    initialUser: String? = null,
+    initialPass: String? = null,
+    initialTopic: String? = null,
     onSave: (ServerSettings) -> Unit,
     onCancel: () -> Unit
 ) {
@@ -48,11 +53,11 @@ fun ConnectionFormScreen(
 
     val isEditing = editingConnection != null
 
-    var host by rememberSaveable { mutableStateOf(editingConnection?.host ?: "") }
-    var port by rememberSaveable { mutableStateOf(editingConnection?.port?.toString() ?: "1883") }
-    var user by rememberSaveable { mutableStateOf(editingConnection?.username ?: "") }
-    var pass by rememberSaveable { mutableStateOf(editingConnection?.password ?: "") }
-    var topic by rememberSaveable { mutableStateOf(editingConnection?.topic ?: "JF/Alarm") }
+    var host by rememberSaveable { mutableStateOf(editingConnection?.host ?: initialHost ?: "") }
+    var port by rememberSaveable { mutableStateOf(editingConnection?.port?.toString() ?: initialPort ?: "1883") }
+    var user by rememberSaveable { mutableStateOf(editingConnection?.username ?: initialUser ?: "") }
+    var pass by rememberSaveable { mutableStateOf(editingConnection?.password ?: initialPass ?: "") }
+    var topic by rememberSaveable { mutableStateOf(editingConnection?.topic ?: initialTopic ?: "JF/Alarm") }
 
     LaunchedEffect(duplicateTopicMessage) {
         duplicateTopicMessage?.let { message ->

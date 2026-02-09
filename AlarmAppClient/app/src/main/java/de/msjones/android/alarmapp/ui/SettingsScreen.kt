@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,11 +56,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import de.msjones.android.alarmapp.data.ServerSettings
+import de.msjones.android.alarmapp.data.ServerSettings.Companion.fromQrCode
+import de.msjones.android.alarmapp.ui.QrCodeScannerScreen
 
 sealed class SettingsScreenState {
     data object List : SettingsScreenState()
     data class Edit(val connection: ServerSettings) : SettingsScreenState()
     data object Add : SettingsScreenState()
+    data object ScanQr : SettingsScreenState()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,6 +85,7 @@ fun SettingsScreen(
     var serviceEnabled by remember(isServiceRunning) { mutableStateOf(isServiceRunning) }
     var activeConnectionCount by remember { mutableStateOf(0) }
     var screenState by remember { mutableStateOf<SettingsScreenState>(SettingsScreenState.List) }
+    var scannedConnectionFromQr by remember { mutableStateOf<ServerSettings?>(null) }
 
     // Register broadcast receiver for auth errors
     val authErrorReceiver = remember {
@@ -183,11 +189,20 @@ fun SettingsScreen(
             ConnectionFormScreen(
                 existingConnections = connections,
                 editingConnection = null,
+                initialHost = scannedConnectionFromQr?.host,
+                initialPort = scannedConnectionFromQr?.port?.toString(),
+                initialUser = scannedConnectionFromQr?.username,
+                initialPass = scannedConnectionFromQr?.password,
+                initialTopic = scannedConnectionFromQr?.topic,
                 onSave = { settings ->
                     onSaveConnection(settings)
+                    scannedConnectionFromQr = null
                     screenState = SettingsScreenState.List
                 },
-                onCancel = { screenState = SettingsScreenState.List }
+                onCancel = {
+                    scannedConnectionFromQr = null
+                    screenState = SettingsScreenState.List
+                }
             )
         }
 
@@ -203,6 +218,26 @@ fun SettingsScreen(
             )
         }
 
+        is SettingsScreenState.ScanQr -> {
+            QrCodeScannerScreen(
+                onQrCodeScanned = { qrContent ->
+                    val settings = fromQrCode(qrContent)
+                    if (settings != null) {
+                        scannedConnectionFromQr = settings
+                        screenState = SettingsScreenState.Add
+                    } else {
+                        // Invalid QR code - show error and go back to list
+                        screenState = SettingsScreenState.List
+                    }
+                },
+                onCancel = { screenState = SettingsScreenState.List },
+                onError = { errorMessage ->
+                    // Show error and go back to list
+                    screenState = SettingsScreenState.List
+                }
+            )
+        }
+
         SettingsScreenState.List -> {
             SettingsListContent(
                 connections = connections,
@@ -214,6 +249,7 @@ fun SettingsScreen(
                 onStartAllServices = onStartAllServices,
                 onStopAllServices = onStopAllServices,
                 onAddConnection = { screenState = SettingsScreenState.Add },
+                onScanQr = { screenState = SettingsScreenState.ScanQr },
                 onEditConnection = { screenState = SettingsScreenState.Edit(it) },
                 onDeleteConnection = onDeleteConnection,
                 onSetActiveConnection = onSetActiveConnection
@@ -234,6 +270,7 @@ private fun SettingsListContent(
     onStartAllServices: () -> Unit,
     onStopAllServices: () -> Unit,
     onAddConnection: () -> Unit,
+    onScanQr: () -> Unit,
     onEditConnection: (ServerSettings) -> Unit,
     onDeleteConnection: (String) -> Unit,
     onSetActiveConnection: (String) -> Unit
@@ -298,19 +335,28 @@ private fun SettingsListContent(
 
             Spacer(Modifier.height(24.dp))
 
-            // Header with title and add button
+            // Header with title and add buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Gespeicherte Verbindungen", style = MaterialTheme.typography.titleMedium)
-                IconButton(onClick = onAddConnection) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Neue Verbindung hinzufügen",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                Row {
+                    IconButton(onClick = onScanQr) {
+                        Icon(
+                            imageVector = Icons.Default.QrCodeScanner,
+                            contentDescription = "QR-Code scannen",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(onClick = onAddConnection) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Neue Verbindung hinzufügen",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
 
@@ -318,7 +364,7 @@ private fun SettingsListContent(
 
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxHeight(1f)
             ) {
                 items(connections) { connection ->
                     ConnectionCard(
@@ -367,7 +413,7 @@ private fun ConnectionCard(
                 tint = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = connection.host.ifEmpty { "Unbenannt" },
                     fontWeight = FontWeight.Bold,

@@ -37,6 +37,8 @@ data class ServerSettings(
     }
 
     companion object {
+        private const val VALID_ORIGINATOR = "MSJones JF Alarm App"
+
         fun fromJson(json: JSONObject): ServerSettings {
             return ServerSettings(
                 id = json.optString("id", UUID.randomUUID().toString()),
@@ -48,6 +50,33 @@ data class ServerSettings(
                 topic = json.optString("topic", "JF/Alarm"),
                 isActive = json.optBoolean("isActive", false)
             )
+        }
+
+        /**
+         * Parse QR code JSON string with originator validation
+         * @return ServerSettings if valid, null if invalid or wrong originator
+         */
+        fun fromQrCode(jsonString: String): ServerSettings? {
+            return try {
+                val json = JSONObject(jsonString)
+                val originator = json.optString("originator", "")
+                if (originator != VALID_ORIGINATOR) {
+                    null
+                } else {
+                    ServerSettings(
+                        id = UUID.randomUUID().toString(),
+                        name = json.optString("name", ""),
+                        host = json.optString("host", ""),
+                        port = json.optInt("port", 1883),
+                        username = json.optString("username", ""),
+                        password = json.optString("password", ""),
+                        topic = json.optString("topic", "JF/Alarm"),
+                        isActive = false
+                    )
+                }
+            } catch (e: Exception) {
+                null
+            }
         }
     }
 }

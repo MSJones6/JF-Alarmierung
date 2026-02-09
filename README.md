@@ -94,3 +94,50 @@ docker exec -it <container_name> mosquitto_passwd -D /mosquitto/config/passwordf
 ```
 docker restart <container_name>
 ```
+
+## QR-Code für Android App generieren
+Um einen QR-Code für die Android App zu generieren, erstellen Sie einen JSON-String mit folgendem Format:
+
+```json
+{
+  "originator": "MSJones JF Alarm App",
+  "host": "mqtt.jf-alarm.example.com",
+  "port": 8883,
+  "username": "feuerwehr-alarm",
+  "password": "secureToken123",
+  "topic": "JF/Alarm"
+}
+```
+
+### Felder:
+| Feld | Beschreibung | Pflicht |
+|------|--------------|---------|
+| `originator` | Muss exakt "MSJones JF Alarm App" sein | ✓ |
+| `host` | MQTT Server Hostname oder IP | ✓ |
+| `port` | MQTT Port (Standard: 1883) | ✓ |
+| `username` | Authentifizierung Benutzername | ✗ |
+| `password` | Authentifizierung Passwort | ✗ |
+| `topic` | MQTT Topic für Alarme | ✓ |
+
+### QR-Code Generator Beispiel (JavaScript):
+```javascript
+function generateQrCode(settings) {
+  const json = JSON.stringify({
+    originator: "MSJones JF Alarm App",
+    host: settings.host,
+    port: settings.port,
+    username: settings.username,
+    password: settings.password,
+    topic: settings.topic
+  });
+  
+  // Verwenden Sie eine QR-Code Bibliothek wie qrcode.js
+  return qrcode.toDataURL(json);
+}
+```
+
+### Beispiel mit Online-Generatoren:
+1. JSON-Objekt erstellen
+2. JSON-String kopieren
+3. In QR-Code Generator wie https://www.qr-code-generator.com/ einfügen
+4. QR-Code herunterladen und verteilen
