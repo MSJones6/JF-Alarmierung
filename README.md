@@ -12,6 +12,30 @@ Die Entwickler können keine Garantie für die Funktionsfähigkeit oder Haftung 
 Bei Problemen könnt ihr uns jedoch gerne kontaktieren!
 Wir sind bemüht, bei Problemen Hilfestellung zu geben.
 
+---
+
+## Beiträge und Feature-Vorschläge
+
+Wir freuen uns über Beiträge, Verbesserungsvorschläge und neue Ideen! 
+Das Projekt ist Open-Source und lebt von der Community.
+
+### Wie ihr beitragen könnt:
+
+- **Feature-Vorschläge**: Habt ihr eine Idee für ein neues Feature? 
+  Lasst es uns wissen! Wir sind offen für Anregungen.
+- **Bug-Reports": Findet ihr einen Bug? Meldet ihn gerne.
+- **Pull-Requests": Direkte Verbesserungen sind willkommen – Code, Dokumentation, Übersetzungen.
+- **Feedback**: Allgemeines Feedback hilft uns, das Projekt besser zu machen.
+
+### Kontakt:
+
+- GitHub Issues für Bug-Reports und Feature-Vorschläge
+- Direkte Kontaktaufnahme bei größeren Ideen oder Fragen
+
+Wir sind gespannt auf eure Vorschläge und bedanken uns für euer Interesse am Projekt!
+
+---
+
 ## Systemarchitektur
 
 ```
