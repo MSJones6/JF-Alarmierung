@@ -21,7 +21,8 @@ data class ServerSettings(
     val username: String = "",
     val password: String = "",
     val topic: String = "JF/Alarm",
-    val isActive: Boolean = false
+    val isActive: Boolean = false,
+    val ssl: Boolean = false
 ) {
     fun toJson(): JSONObject {
         return JSONObject().apply {
@@ -33,6 +34,7 @@ data class ServerSettings(
             put("password", password)
             put("topic", topic)
             put("isActive", isActive)
+            put("ssl", ssl)
         }
     }
 
@@ -48,7 +50,8 @@ data class ServerSettings(
                 username = json.optString("username", ""),
                 password = json.optString("password", ""),
                 topic = json.optString("topic", "JF/Alarm"),
-                isActive = json.optBoolean("isActive", false)
+                isActive = json.optBoolean("isActive", false),
+                ssl = json.optBoolean("ssl", false)
             )
         }
 
@@ -71,7 +74,8 @@ data class ServerSettings(
                         username = json.optString("username", ""),
                         password = json.optString("password", ""),
                         topic = json.optString("topic", "JF/Alarm"),
-                        isActive = false
+                        isActive = false,
+                        ssl = json.optBoolean("ssl", false)
                     )
                 }
             } catch (e: Exception) {

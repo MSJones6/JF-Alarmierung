@@ -195,6 +195,7 @@ fun SettingsScreen(
                 initialUser = scannedConnectionFromQr?.username,
                 initialPass = scannedConnectionFromQr?.password,
                 initialTopic = scannedConnectionFromQr?.topic,
+                initialSsl = scannedConnectionFromQr?.ssl,
                 onSave = { settings ->
                     onSaveConnection(settings)
                     scannedConnectionFromQr = null

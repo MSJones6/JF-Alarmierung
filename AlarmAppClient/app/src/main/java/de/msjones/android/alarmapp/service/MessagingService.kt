@@ -25,6 +25,7 @@ class MessagingService : LifecycleService() {
         const val EXTRA_PASSWORD = "password"
         const val EXTRA_TOPIC = "topic"
         const val EXTRA_CONNECTION_ID = "connection_id"
+        const val EXTRA_SSL = "ssl"
         const val ACTION_STOP_ALL = "STOP_ALL_CONNECTIONS"
     }
 
@@ -50,6 +51,7 @@ class MessagingService : LifecycleService() {
         val password = intent?.getStringExtra(EXTRA_PASSWORD) ?: ""
         val topic = intent?.getStringExtra(EXTRA_TOPIC) ?: "JF/Alarm"
         val connectionId = intent?.getStringExtra(EXTRA_CONNECTION_ID) ?: "unknown"
+        val ssl = intent?.getBooleanExtra(EXTRA_SSL, false) ?: false
 
         // MQTT-Verbindung im Hintergrund aufbauen
         job = lifecycleScope.launch(Dispatchers.IO) {
@@ -58,7 +60,8 @@ class MessagingService : LifecycleService() {
                 return@launch
             }
 
-            val serverUri = "tcp://${host}:${port}"
+            val protocol = if (ssl) "ssl" else "tcp"
+            val serverUri = "${protocol}://${host}:${port}"
             
             // Disconnect existing client if any
             clientWrappers[connectionId]?.disconnectAndWait()

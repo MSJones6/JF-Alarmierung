@@ -30,12 +30,21 @@ class MqttClientWrapper(
 
     suspend fun connect() {
         try {
-            client = MqttClient.builder()
+            val protocol = if (serverUri.startsWith("ssl://")) "ssl" else "tcp"
+            val host = serverUri.substringAfter("${protocol}://").substringBefore(":")
+            val port = serverUri.substringAfterLast(":").toInt()
+
+            val builder = MqttClient.builder()
                 .useMqttVersion3()
                 .identifier(clientId)
-                .serverHost(serverUri.substringAfter("tcp://").substringBefore(":"))
-                .serverPort(serverUri.substringAfterLast(":").toInt())
-                .buildAsync()
+                .serverHost(host)
+                .serverPort(port)
+
+            if (protocol == "ssl") {
+                builder.sslWithDefaultConfig()
+            }
+
+            client = builder.buildAsync()
 
             val connAck: Mqtt3ConnAck = client?.connectWith()
                 ?.simpleAuth()

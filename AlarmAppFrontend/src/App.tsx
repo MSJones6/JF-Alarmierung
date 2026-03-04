@@ -1,23 +1,12 @@
 import React, { useState } from "react";
 import mqtt, { MqttClient } from "mqtt";
 
-interface AlarmMessage {
-  date: string;
-  time: string;
-  alarmstichwort: string;
-  adresse: string;
-  info: string;
-  sentAt: string;
-}
-
 type StatusType = "idle" | "sending" | "success" | "error";
 
-function formatAlarmMessage(msg: AlarmMessage): string {
-  return `${msg.alarmstichwort}###${msg.adresse}###${msg.info}`;
-}
-
 export default function App() {
-  const [brokerUrl, setBrokerUrl] = useState<string>("ws://localhost:9001");
+  const [useSsl, setUseSsl] = useState<boolean>(false);
+  const [brokerHost, setBrokerHost] = useState<string>("localhost");
+  const [brokerPort, setBrokerPort] = useState<string>("9001");
   const [user, setUser] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [topic, setTopic] = useState<string>("JF/Alarm");
@@ -26,6 +15,12 @@ export default function App() {
   const [info, setInfo] = useState<string>("");
   const [status, setStatus] = useState<string>("");
   const [statusType, setStatusType] = useState<StatusType>("idle");
+
+  // Generiere die vollständige Broker-URL basierend auf SSL-Einstellung
+  const getBrokerUrl = (): string => {
+    const protocol = useSsl ? "wss://" : "ws://";
+    return `${protocol}${brokerHost}:${brokerPort}`;
+  };
 
   const sendMessage = (): void => {
     setStatusType("sending");
@@ -44,7 +39,7 @@ export default function App() {
     };
 
     try {
-      const client: MqttClient = mqtt.connect(brokerUrl, mqttOptions);
+      const client: MqttClient = mqtt.connect(getBrokerUrl(), mqttOptions);
 
       // Connection timeout handler
       const timeoutId = setTimeout(() => {
@@ -117,13 +112,42 @@ export default function App() {
           Alarm Nachricht senden
         </h1>
 
-        {/* Broker URL */}
+        {/* SSL-Auswahl */}
+        <div className="mb-4 flex items-center">
+          <input
+            type="checkbox"
+            id="useSsl"
+            className="w-5 h-5 text-blue-600 rounded focus:ring-blue-400"
+            checked={useSsl}
+            onChange={(e) => setUseSsl(e.target.checked)}
+          />
+          <label htmlFor="useSsl" className="ml-2 font-medium text-gray-700">
+            SSL-Verschlüsselung (verschlüsselt)
+          </label>
+        </div>
+
+        {/* Broker Host */}
         <div className="mb-4 flex flex-col">
-          <label className="mb-1 font-medium text-gray-700">Broker URL</label>
+          <label className="mb-1 font-medium text-gray-700">Hostname</label>
           <input
             className="border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
-            value={brokerUrl}
-            onChange={(e) => setBrokerUrl(e.target.value)}
+            value={brokerHost}
+            onChange={(e) => setBrokerHost(e.target.value)}
+            placeholder="z.B. localhost"
+          />
+        </div>
+
+        {/* Broker Port */}
+        <div className="mb-4 flex flex-col">
+          <label className="mb-1 font-medium text-gray-700">Port</label>
+          <input
+            type="number"
+            className="border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
+            value={brokerPort}
+            onChange={(e) => setBrokerPort(e.target.value)}
+            placeholder="z.B. 9001"
+            min="1"
+            max="65535"
           />
         </div>
 

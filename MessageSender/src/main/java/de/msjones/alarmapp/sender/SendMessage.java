@@ -4,14 +4,14 @@ import org.eclipse.paho.client.mqttv3.*;
 
 public class SendMessage {
     public static void main(String[] args) {
-        String broker = "tcp://localhost:1883"; // Adresse des Mosquitto-Brokers
+        String broker = "ssl://v2ffe819.ala.eu-central-1.emqxsl.com:8883"; // Adresse des Mosquitto-Brokers
         String clientId = "JavaPublisher";     // Eindeutige Client-ID
-        String topic = "JF/Alarm";           // Topic, an das gesendet wird
+        String topic = "JF/Alarm/KB";           // Topic, an das gesendet wird
         String payload = "Brand 3###Hauptstrasse 12, 66346 Püttlingen (Köllerbach)###Keine Person in Wohnung";
 
         // Authentication credentials - use environment variables or defaults
-        String username = "alarm";
-        String password = "alarm";
+        String username = "Receiver-KB";
+        String password = "BK-revieceR";
 
         // Fallback to defaults if environment variables are not set
         if (username == null) {

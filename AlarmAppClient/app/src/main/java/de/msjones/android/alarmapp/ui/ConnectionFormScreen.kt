@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -30,6 +31,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -45,6 +47,7 @@ fun ConnectionFormScreen(
     initialUser: String? = null,
     initialPass: String? = null,
     initialTopic: String? = null,
+    initialSsl: Boolean? = null,
     onSave: (ServerSettings) -> Unit,
     onCancel: () -> Unit
 ) {
@@ -53,6 +56,7 @@ fun ConnectionFormScreen(
 
     val isEditing = editingConnection != null
 
+    var ssl by rememberSaveable { mutableStateOf(editingConnection?.ssl ?: initialSsl ?: false) }
     var host by rememberSaveable { mutableStateOf(editingConnection?.host ?: initialHost ?: "") }
     var port by rememberSaveable { mutableStateOf(editingConnection?.port?.toString() ?: initialPort ?: "1883") }
     var user by rememberSaveable { mutableStateOf(editingConnection?.username ?: initialUser ?: "") }
@@ -89,6 +93,19 @@ fun ConnectionFormScreen(
                 .padding(16.dp)
                 .statusBarsPadding()
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("SSL")
+                Switch(
+                    checked = ssl,
+                    onCheckedChange = { ssl = it }
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+
             OutlinedTextField(
                 value = host,
                 onValueChange = { host = it },
@@ -157,7 +174,8 @@ fun ConnectionFormScreen(
                             username = user.trim(),
                             password = pass,
                             topic = trimmedTopic,
-                            isActive = editingConnection?.isActive ?: false
+                            isActive = editingConnection?.isActive ?: false,
+                            ssl = ssl
                         )
                         onSave(settings)
                     },

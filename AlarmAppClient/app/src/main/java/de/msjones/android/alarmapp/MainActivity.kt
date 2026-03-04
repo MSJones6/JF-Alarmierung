@@ -300,6 +300,7 @@ class MainActivity : ComponentActivity() {
             putExtra(MessagingService.EXTRA_PASSWORD, settings.password)
             putExtra(MessagingService.EXTRA_TOPIC, settings.topic)
             putExtra(MessagingService.EXTRA_CONNECTION_ID, settings.id)
+            putExtra(MessagingService.EXTRA_SSL, settings.ssl)
         }
         startForegroundService(intent)
     }
