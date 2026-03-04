@@ -23,9 +23,14 @@ Das Projekt ist Open-Source und lebt von der Community.
 
 - **Feature-Vorschläge**: Habt ihr eine Idee für ein neues Feature? 
   Lasst es uns wissen! Wir sind offen für Anregungen.
-- **Bug-Reports": Findet ihr einen Bug? Meldet ihn gerne.
-- **Pull-Requests": Direkte Verbesserungen sind willkommen – Code, Dokumentation, Übersetzungen.
+- **Bug-Reports**: Findet ihr einen Bug? Meldet ihn gerne.
+- **Pull-Requests**: Direkte Verbesserungen sind willkommen – Code, Dokumentation, Übersetzungen.
 - **Feedback**: Allgemeines Feedback hilft uns, das Projekt besser zu machen.
+
+### ☕ Unterstützung
+Wenn dir die App gefällt und du die Entwicklung der Jugendfeuerwehr-Alarmierung unterstützen möchtest, freue ich mich über einen Kaffee!
+
+[![PayPal](https://img.shields.io/badge/PayPal-Spenden-blue.svg)](https://paypal.me/JFAlarmApp)
 
 ### Kontakt:
 
