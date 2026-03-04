@@ -39,6 +39,7 @@ class MqttClientWrapper(
                 .identifier(clientId)
                 .serverHost(host)
                 .serverPort(port)
+                .automaticReconnectWithDefaultConfig()
 
             if (protocol == "ssl") {
                 builder.sslWithDefaultConfig()
@@ -51,6 +52,7 @@ class MqttClientWrapper(
                 ?.username(user)
                 ?.password(pass.toByteArray())
                 ?.applySimpleAuth()
+                ?.keepAlive(45)
                 ?.send()
                 ?.await() ?: throw Exception("Verbindung fehlgeschlagen")
 
