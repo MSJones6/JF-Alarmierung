@@ -14,11 +14,7 @@ class MessagingServiceStarterWorker(
     override suspend fun doWork(): Result {
         return try {
             val serviceIntent = Intent(applicationContext, MessagingService::class.java)
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                applicationContext.startForegroundService(serviceIntent)
-            } else {
-                applicationContext.startService(serviceIntent)
-            }
+            applicationContext.startForegroundService(serviceIntent)
             Result.success()
         } catch (e: Exception) {
             e.printStackTrace()
