@@ -40,7 +40,7 @@ Wir sind gespannt auf eure Vorschläge und bedanken uns für euer Interesse am P
 
 ```
 ┌─────────────────┐     MQTT      ┌─────────────────┐     Websocket  ┌──────────────────┐
-│ MessageSender   │─────────────▶│  AlarmAppServer │◀──────────────│ AlarmAppFrontend │
+│ MessageSender   │──────────────▶│  AlarmAppServer │◀───────────────│ AlarmAppFrontend │
 │ (Java Backend)  │               │  (Mosquitto)    │                │ (React Web App)  │
 └─────────────────┘               └────────┬────────┘                └──────────────────┘
                                            │ MQTT/WebSocket
@@ -227,8 +227,9 @@ Um einen QR-Code für die Android App zu generieren, erstellen Sie einen JSON-St
 ```json
 {
   "originator": "MSJones JF Alarm App",
+  "ssl": true,
   "host": "mqtt.jf-alarm.example.com",
-  "port": 8883,
+  "port": 8443,
   "username": "feuerwehr-alarm",
   "password": "secureToken123",
   "topic": "JF/Alarm"

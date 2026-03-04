@@ -7,22 +7,37 @@ export default function App() {
   const [useSsl, setUseSsl] = useState<boolean>(false);
   const [brokerHost, setBrokerHost] = useState<string>("localhost");
   const [brokerPort, setBrokerPort] = useState<string>("9001");
-  const [user, setUser] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
+  const [brokerPath, setBrokerPath] = useState<string>("/mqtt");
+  const [user, setUser] = useState<string>("alarm");
+  const [password, setPassword] = useState<string>("alarm");
   const [topic, setTopic] = useState<string>("JF/Alarm");
-  const [alarmstichwort, setAlarmstichwort] = useState<string>("");
-  const [adresse, setAdresse] = useState<string>("");
-  const [info, setInfo] = useState<string>("");
+  const [alarmstichwort, setAlarmstichwort] = useState<string>("Brand");
+  const [adresse, setAdresse] = useState<string>("Musterstraße 123, 10115 Berlin");
+  const [info, setInfo] = useState<string>("Testalarm - bitte ignorieren");
   const [status, setStatus] = useState<string>("");
   const [statusType, setStatusType] = useState<StatusType>("idle");
 
   // Generiere die vollständige Broker-URL basierend auf SSL-Einstellung
   const getBrokerUrl = (): string => {
     const protocol = useSsl ? "wss://" : "ws://";
-    return `${protocol}${brokerHost}:${brokerPort}`;
+    let url = `${protocol}${brokerHost}:${brokerPort}`;
+    if (brokerPath) {
+      // Stelle sicher, dass der Pfad mit "/" beginnt
+      const normalizedPath = brokerPath.startsWith("/") ? brokerPath : `/${brokerPath}`;
+      url += normalizedPath;
+    }
+    return url;
   };
 
   const sendMessage = (): void => {
+    console.log("sendMessage function called");
+    // Validate required fields
+    if (!alarmstichwort || !adresse) {
+      setStatusType("error");
+      setStatus("Bitte füllen Sie mindestens Alarmstichwort und Adresse aus ❌");
+      return;
+    }
+
     setStatusType("sending");
     setStatus("Verbindung zum Broker wird hergestellt... ⏳");
 
@@ -36,7 +51,12 @@ export default function App() {
       reconnectPeriod: 0,
       connectTimeout: 10000,
       keepalive: 60,
+      // SSL/TLS options for secure connections
+      rejectUnauthorized: false, // Disable strict SSL verification for testing
     };
+
+    console.log("Connecting to MQTT broker:", getBrokerUrl());
+    console.log("MQTT Options:", mqttOptions);
 
     try {
       const client: MqttClient = mqtt.connect(getBrokerUrl(), mqttOptions);
@@ -47,7 +67,7 @@ export default function App() {
           console.log("Client ist bereits verbunden");
         } else {
           setStatusType("error");
-          setStatus("Verbindungstimeout ❌ - Broker antwortet nicht");
+          setStatus("Verbindungstimeout ❌ - Broker antwortet nicht (Port: " + brokerPort + ")");
           client.end();
         }
       }, 10000);
@@ -71,22 +91,24 @@ export default function App() {
 
       client.on("error", (err: any) => {
         clearTimeout(timeoutId);
+        console.error("MQTT Connection Error:", err);
         setStatusType("error");
         setStatus("MQTT Fehler ❌: " + (err.message || err));
       });
 
       client.on("close", () => {
-        // Verbindung geschlossen
+        console.log("MQTT Connection closed");
       });
 
       client.on("offline", () => {
-        // MQTT offline
+        console.log("MQTT Client offline");
       });
 
       client.on("reconnect", () => {
-        // MQTT reconnect
+        console.log("MQTT Client reconnecting");
       });
     } catch (err: any) {
+      console.error("Connection Exception:", err);
       setStatusType("error");
       setStatus("Verbindungsfehler ❌: " + err.message);
     }
@@ -148,6 +170,17 @@ export default function App() {
             placeholder="z.B. 9001"
             min="1"
             max="65535"
+          />
+        </div>
+
+        {/* Broker Path */}
+        <div className="mb-4 flex flex-col">
+          <label className="mb-1 font-medium text-gray-700">Pfad</label>
+          <input
+            className="border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
+            value={brokerPath}
+            onChange={(e) => setBrokerPath(e.target.value)}
+            placeholder="z.B. /mqtt"
           />
         </div>
 
