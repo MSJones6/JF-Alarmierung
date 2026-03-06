@@ -53,6 +53,9 @@ class MainActivity : ComponentActivity() {
         }
 
         lifecycleScope.launch {
+            // Daten sicher migrieren, falls nötig
+            store.migrateIfNeeded()
+
             // Initialize default connection if empty
             store.initializeDefaultIfEmpty(
                 ServerSettings(
