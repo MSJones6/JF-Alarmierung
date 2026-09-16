@@ -14,6 +14,9 @@ import de.msjones.android.alarmapp.MainActivity
 import de.msjones.android.alarmapp.R
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * Erzeugt Notification-Channels sowie Service- und Alarm-Benachrichtigungen.
+ */
 class NotificationHelper(private val context: Context) {
 
     companion object {

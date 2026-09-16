@@ -1,22 +1,24 @@
 package de.msjones.android.alarmapp
 
 import android.Manifest
-import android.app.ActivityManager
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import de.msjones.android.alarmapp.data.ServerSettings
 import de.msjones.android.alarmapp.data.SettingsStore
+import de.msjones.android.alarmapp.event.MessagingEvent
+import de.msjones.android.alarmapp.event.MessagingEventBus
 import de.msjones.android.alarmapp.service.MessagingService
 import de.msjones.android.alarmapp.ui.MessageListScreen
 import de.msjones.android.alarmapp.ui.MessageViewModel
@@ -24,39 +26,30 @@ import de.msjones.android.alarmapp.ui.SettingsScreen
 import de.msjones.android.alarmapp.ui.theme.JFAlarmTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
 
+/**
+ * Einstiegsaktivität der JF Alarm App mit Nachrichtenliste und Einstellungen.
+ */
 class MainActivity : ComponentActivity() {
 
     private lateinit var store: SettingsStore
-    private lateinit var msgViewModel: MessageViewModel
-    private var messageReceiver: BroadcastReceiver? = null
-    private var connectionStateReceiver: BroadcastReceiver? = null
-    private var authErrorReceiver: BroadcastReceiver? = null
-    private var stopAllReceiver: BroadcastReceiver? = null
 
     private val reqNotifPerm = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
         store = SettingsStore(this)
 
-        // Benachrichtigungsrechte anfragen (nur ab Android 13)
         if (Build.VERSION.SDK_INT >= 33) {
             reqNotifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
         lifecycleScope.launch {
-            // Daten sicher migrieren, falls nötig
             store.migrateIfNeeded()
-
-            // Initialize default connection if empty
             store.initializeDefaultIfEmpty(
                 ServerSettings(
                     host = "localhost",
@@ -68,10 +61,29 @@ class MainActivity : ComponentActivity() {
             )
         }
 
+        // Globale Service-Ereignisse (Stop-All) auch ohne geöffnete Settings verarbeiten.
+        lifecycleScope.launch {
+            MessagingEventBus.events.collect { event ->
+                when (event) {
+                    is MessagingEvent.StopAllConnections -> {
+                        stopMessagingService()
+                        store.clearConnectionStatus()
+                    }
+                    is MessagingEvent.AuthError -> {
+                        store.setConnectionError(event.errorMessage)
+                    }
+                    is MessagingEvent.ConnectionState -> {
+                        persistConnectionState(event.status, event.message)
+                    }
+                    else -> Unit
+                }
+            }
+        }
+
         setContent {
             JFAlarmTheme {
                 val navController = rememberNavController()
-                msgViewModel = viewModel()
+                val msgViewModel: MessageViewModel = viewModel()
 
                 val connections by store.flow.collectAsState(initial = emptyList())
                 val activeConnectionId by store.activeConnectionId.collectAsState(initial = null)
@@ -92,7 +104,6 @@ class MainActivity : ComponentActivity() {
                             onSaveConnection = { s ->
                                 lifecycleScope.launch {
                                     store.saveConnection(s)
-                                    // Set as active if it's the first connection
                                     if (connections.isEmpty()) {
                                         store.setActiveConnection(s.id)
                                     }
@@ -101,7 +112,6 @@ class MainActivity : ComponentActivity() {
                             onDeleteConnection = { id ->
                                 lifecycleScope.launch {
                                     store.deleteConnection(id)
-                                    // If deleted connection was active, clear it
                                     if (activeConnectionId == id) {
                                         store.clearActiveConnection()
                                     }
@@ -109,7 +119,6 @@ class MainActivity : ComponentActivity() {
                             },
                             onSetActiveConnection = { id ->
                                 lifecycleScope.launch {
-                                    // Update isActive field for all connections
                                     val allConnections = store.flow.first()
                                     for (connection in allConnections) {
                                         val updated = connection.copy(isActive = connection.id == id)
@@ -119,43 +128,26 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             onStartAllServices = {
-                                // Start service for each connection
                                 connections.forEach { connection ->
                                     startMessagingService(connection)
                                 }
-                                // Broadcast service running state
-                                val intent = Intent("SERVICE_RUNNING_STATE")
-                                intent.putExtra("is_running", true)
-                                LocalBroadcastManager.getInstance(this@MainActivity).sendBroadcast(intent)
+                                MessagingEventBus.tryEmit(
+                                    MessagingEvent.ServiceRunningState(true)
+                                )
                             },
                             onStopAllServices = {
-                                // Stop all services by sending stop intent for each
-                                stopService(
-                                    Intent(
-                                        this@MainActivity,
-                                        MessagingService::class.java
-                                    )
+                                stopMessagingService()
+                                MessagingEventBus.tryEmit(
+                                    MessagingEvent.ServiceRunningState(false)
                                 )
-                                // Broadcast service stopped state
-                                val intent = Intent("SERVICE_RUNNING_STATE")
-                                intent.putExtra("is_running", false)
-                                LocalBroadcastManager.getInstance(this@MainActivity).sendBroadcast(intent)
                             },
                             onServiceFailed = {
-                                // Service failed to start (e.g., auth error)
-                                // Stop all services
-                                stopService(
-                                    Intent(
-                                        this@MainActivity,
-                                        MessagingService::class.java
-                                    )
+                                stopMessagingService()
+                                MessagingEventBus.tryEmit(
+                                    MessagingEvent.ServiceRunningState(false)
                                 )
-                                // Broadcast service stopped state
-                                val intent = Intent("SERVICE_RUNNING_STATE")
-                                intent.putExtra("is_running", false)
-                                LocalBroadcastManager.getInstance(this@MainActivity).sendBroadcast(intent)
                             },
-                            isServiceRunning = isMessagingServiceRunning()
+                            isServiceRunning = MessagingService.isRunning()
                         )
                     }
                 }
@@ -163,138 +155,31 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onStart() {
-        super.onStart()
-        registerMessageReceiver()
-        registerConnectionStateReceiver()
-        registerAuthErrorReceiver()
-        registerStopAllReceiver()
-    }
-
-    override fun onStop() {
-        super.onStop()
-        unregisterMessageReceiver()
-        unregisterConnectionStateReceiver()
-        unregisterAuthErrorReceiver()
-        unregisterStopAllReceiver()
-    }
-
-    private fun registerMessageReceiver() {
-        messageReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == "NEW_MESSAGE") {
-                    val keyword = intent.getStringExtra("keyword") ?: ""
-                    val location = intent.getStringExtra("location") ?: ""
-                    val extras = intent.getStringExtra("extras") ?: ""
-                    
-                    if (keyword.isNotBlank() || location.isNotBlank() || extras.isNotBlank()) {
-                        msgViewModel.addMessage(keyword, location, extras)
-                    }
-                }
-            }
-        }
-        val filter = IntentFilter("NEW_MESSAGE")
-        LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver!!, filter)
-    }
-
-    private fun unregisterMessageReceiver() {
-        messageReceiver?.let {
-            LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
-            messageReceiver = null
+    /**
+     * Speichert den Verbindungsstatus dauerhaft im SettingsStore.
+     */
+    private suspend fun persistConnectionState(status: String, stateMessage: String) {
+        if (status.isEmpty() || stateMessage.isEmpty()) return
+        when (status.uppercase()) {
+            "CONNECTED" -> store.setConnected(stateMessage)
+            "DISCONNECTED" -> store.setDisconnected(stateMessage)
+            "ERROR" -> store.setConnectionError(stateMessage)
+            else -> store.setConnectionStatus(status, stateMessage)
         }
     }
 
-    private fun registerConnectionStateReceiver() {
-        connectionStateReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == "CONNECTION_STATE") {
-                    val status = intent.getStringExtra("state_status") ?: ""
-                    val stateMessage = intent.getStringExtra("state_message") ?: ""
-                    
-                    // Store connection status persistently
-                    if (status.isNotEmpty() && stateMessage.isNotEmpty()) {
-                        lifecycleScope.launch {
-                            when (status.uppercase()) {
-                                "CONNECTED" -> store.setConnected(stateMessage)
-                                "DISCONNECTED" -> store.setDisconnected(stateMessage)
-                                "ERROR" -> store.setConnectionError(stateMessage)
-                                else -> store.setConnectionStatus(status, stateMessage)
-                            }
-                        }
-                    }
-                    
-                    // The ViewModel will load the persisted status automatically
-                }
-            }
-        }
-        val filter = IntentFilter("CONNECTION_STATE")
-        LocalBroadcastManager.getInstance(this).registerReceiver(connectionStateReceiver!!, filter)
+    /**
+     * Beendet den Messaging-Foreground-Service.
+     */
+    private fun stopMessagingService() {
+        stopService(Intent(this, MessagingService::class.java))
     }
 
-    private fun unregisterConnectionStateReceiver() {
-        connectionStateReceiver?.let {
-            LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
-            connectionStateReceiver = null
-        }
-    }
-
-    private fun registerAuthErrorReceiver() {
-        authErrorReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == "AUTH_ERROR") {
-                    val errorMessage = intent.getStringExtra("error_message") ?: ""
-                    // Store auth error persistently
-                    lifecycleScope.launch {
-                        store.setConnectionError(errorMessage)
-                    }
-                }
-            }
-        }
-        val filter = IntentFilter("AUTH_ERROR")
-        LocalBroadcastManager.getInstance(this).registerReceiver(authErrorReceiver!!, filter)
-    }
-
-    private fun unregisterAuthErrorReceiver() {
-        authErrorReceiver?.let {
-            LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
-            authErrorReceiver = null
-        }
-    }
-
-    private fun registerStopAllReceiver() {
-        stopAllReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == MessagingService.ACTION_STOP_ALL) {
-                    // Stop all services
-                    stopService(Intent(this@MainActivity, MessagingService::class.java))
-                    // Clear connection status
-                    lifecycleScope.launch {
-                        store.clearConnectionStatus()
-                    }
-                }
-            }
-        }
-        val filter = IntentFilter(MessagingService.ACTION_STOP_ALL)
-        LocalBroadcastManager.getInstance(this).registerReceiver(stopAllReceiver!!, filter)
-    }
-
-    private fun unregisterStopAllReceiver() {
-        stopAllReceiver?.let {
-            LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
-            stopAllReceiver = null
-        }
-    }
-
-    private fun isMessagingServiceRunning(): Boolean {
-        val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
-
-        @Suppress("DEPRECATION")
-        val services = activityManager.getRunningServices(Int.MAX_VALUE)
-        return services.any { service ->
-            service.service.className == MessagingService::class.java.name
-        }
-    }
-
+    /**
+     * Startet den Messaging-Service für eine gespeicherte Verbindung.
+     *
+     * @param settings Verbindungsparameter zum MQTT-Broker
+     */
     private fun startMessagingService(settings: ServerSettings) {
         val intent = Intent(this, MessagingService::class.java).apply {
             putExtra(MessagingService.EXTRA_HOST, settings.host)

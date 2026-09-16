@@ -8,6 +8,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
@@ -18,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,11 +43,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
@@ -54,7 +55,10 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
 
-@OptIn(ExperimentalMaterial3Api::class, androidx.camera.core.ExperimentalGetImage::class)
+/**
+ * Vollbild-Scanner zum Einlesen von Verbindungs-QR-Codes.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QrCodeScannerScreen(
     onQrCodeScanned: (String) -> Unit,
@@ -62,7 +66,6 @@ fun QrCodeScannerScreen(
     onError: (String) -> Unit
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     val snackbarHostState = remember { SnackbarHostState() }
 
     var hasCameraPermission by remember {
@@ -116,9 +119,7 @@ fun QrCodeScannerScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues),
-                onQrCodeDetected = { qrContent ->
-                    onQrCodeScanned(qrContent)
-                }
+                onQrCodeDetected = onQrCodeScanned
             )
         } else {
             Box(
@@ -150,6 +151,10 @@ fun QrCodeScannerScreen(
     }
 }
 
+/**
+ * Kamera-Vorschau mit Live-Analyse für QR-Codes.
+ */
+@androidx.camera.core.ExperimentalGetImage
 @Composable
 private fun CameraPreview(
     modifier: Modifier = Modifier,
@@ -192,12 +197,20 @@ private fun CameraPreview(
                         it.setSurfaceProvider(view.surfaceProvider)
                     }
 
+                val resolutionSelector = ResolutionSelector.Builder()
+                    .setResolutionStrategy(
+                        ResolutionStrategy(
+                            Size(1280, 720),
+                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                        )
+                    )
+                    .build()
+
                 val imageAnalyzer = ImageAnalysis.Builder()
-                    .setTargetResolution(Size(1280, 720))
+                    .setResolutionSelector(resolutionSelector)
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                     .also { analysis ->
-                        @Suppress("UnsafeOptInUsageError")
                         analysis.setAnalyzer(cameraExecutor) { imageProxy ->
                             if (isScanning) {
                                 val mediaImage = imageProxy.image
@@ -226,13 +239,11 @@ private fun CameraPreview(
                         }
                     }
 
-                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
                 try {
                     cameraProvider.unbindAll()
                     cameraProvider.bindToLifecycle(
                         lifecycleOwner,
-                        cameraSelector,
+                        CameraSelector.DEFAULT_BACK_CAMERA,
                         preview,
                         imageAnalyzer
                     )
@@ -243,10 +254,8 @@ private fun CameraPreview(
         }
     )
 
-    // Overlay with scanning instruction
     Box(
-        modifier = modifier
-            .background(Color.Transparent),
+        modifier = modifier.background(Color.Transparent),
         contentAlignment = Alignment.BottomCenter
     ) {
         Column(

@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.map
 
 private val Context.messageDataStore by preferencesDataStore("messages")
 
+/**
+ * Persistierte Alarmnachricht für die lokale Historie.
+ */
 data class AlarmMessage(
     val id: String,
     val keyword: String,
@@ -22,8 +25,12 @@ object MessageKeys {
     val MESSAGES = stringPreferencesKey("messages")
 }
 
+/**
+ * Speichert und lädt Alarmnachrichten über Preferences DataStore.
+ */
 class MessageStore(private val context: Context) {
 
+    /** Beobachtbare Liste aller gespeicherten Alarmnachrichten. */
     val flow: Flow<List<AlarmMessage>> = context.messageDataStore.data.map { prefs: Preferences ->
         val messagesJson = prefs[MessageKeys.MESSAGES] ?: ""
         if (messagesJson.isEmpty()) {
@@ -33,6 +40,7 @@ class MessageStore(private val context: Context) {
         }
     }
 
+    /** Fügt eine neue Alarmnachricht am Anfang der Historie hinzu. */
     suspend fun addMessage(keyword: String, location: String, extras: String) {
         val newMessage = AlarmMessage(
             id = System.currentTimeMillis().toString(),
@@ -53,6 +61,7 @@ class MessageStore(private val context: Context) {
         }
     }
 
+    /** Entfernt eine Nachricht anhand ihrer ID. */
     suspend fun removeMessage(id: String) {
         context.messageDataStore.edit { prefs ->
             val currentJson = prefs[MessageKeys.MESSAGES] ?: ""
@@ -64,6 +73,7 @@ class MessageStore(private val context: Context) {
         }
     }
 
+    /** Löscht die gesamte Nachrichtenhistorie. */
     suspend fun clearAllMessages() {
         context.messageDataStore.edit { prefs ->
             prefs[MessageKeys.MESSAGES] = ""

@@ -6,16 +6,18 @@ plugins {
 
 android {
     namespace = "de.msjones.android.alarmapp"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "de.msjones.android.alarmapp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
 
         vectorDrawables.useSupportLibrary = true
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -30,13 +32,24 @@ android {
 
     buildFeatures { compose = true }
 
+    // NDK r28+ erzeugt standardmäßig 16-KB-alignte native Bibliotheken.
+    ndkVersion = "28.1.10738933"
+
     packaging {
+        jniLibs {
+            // Unkomprimierte .so mit 16-KB-ZIP-Alignment (Play-Store-Anforderung).
+            useLegacyPackaging = false
+        }
         resources {
             excludes += listOf(
                 "META-INF/INDEX.LIST",
                 "META-INF/io.netty.versions.properties"
             )
         }
+    }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -45,7 +58,7 @@ kotlin {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2025.01.00")
+    val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
@@ -60,24 +73,25 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.lifecycle.service)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.localbroadcastmanager)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.security.crypto)
 
-    implementation(libs.accompanist.systemuicontroller)
     implementation(libs.hivemq.mqtt.client)
     implementation(libs.androidx.appcompat)
     implementation(libs.kotlinx.coroutines.android)
 
-    // ML Kit Barcode Scanning
-    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    // ML Kit Barcode Scanning (bundled, 16-KB-kompatibel ab 17.3.0)
+    implementation(libs.mlkit.barcode.scanning)
 
     // CameraX
-    implementation("androidx.camera:camera-camera2:1.5.3")
-    implementation("androidx.camera:camera-lifecycle:1.5.3")
-    implementation("androidx.camera:camera-view:1.5.3")
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
 
+    testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
 }
