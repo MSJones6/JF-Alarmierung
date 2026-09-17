@@ -12,12 +12,18 @@ android {
         applicationId = "de.msjones.android.alarmapp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 4
+        versionName = "1.2.1"
 
         vectorDrawables.useSupportLibrary = true
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Nur 64-Bit-ABIs: ML-Kit-Barhopper ist auf 32-Bit (armeabi-v7a/x86) nur 4-KB-aligniert
+        // und löst sonst die Systemwarnung „isn't 16 KB compatible“ aus.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
     }
 
     buildTypes {
