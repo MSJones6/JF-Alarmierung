@@ -8,6 +8,7 @@ import de.msjones.android.alarmapp.data.AlarmMessageParser
 import de.msjones.android.alarmapp.data.SettingsStore
 import de.msjones.android.alarmapp.event.MessagingEvent
 import de.msjones.android.alarmapp.event.MessagingEventBus
+import de.msjones.android.alarmapp.util.ConnectionStatusTexts
 import de.msjones.android.alarmapp.util.NotificationHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -56,7 +57,7 @@ class MessagingService : LifecycleService() {
 
         startForeground(
             NotificationHelper.SERVICE_NOTIFICATION_ID,
-            helper.buildServiceNotification("Service startet …")
+            helper.buildServiceNotification(buildServiceStatusMessage())
         )
 
         val action = intent?.getStringExtra(EXTRA_ACTION) ?: ACTION_CONNECT
@@ -109,11 +110,23 @@ class MessagingService : LifecycleService() {
                         }
 
                         when (status.uppercase()) {
-                            "CONNECTED" -> settingsStore.setConnected(message)
+                            "CONNECTED" -> {
+                                settingsStore.setConnected(message)
+                                helper.cancelStatusNotification(connectionId)
+                            }
+                            "SUBSCRIBED" -> {
+                                settingsStore.setConnectionStatus(status, message)
+                                helper.cancelStatusNotification(connectionId)
+                            }
                             "DISCONNECTED" -> settingsStore.setDisconnected(message)
                             "ERROR" -> {
                                 settingsStore.setConnectionError(message)
                                 settingsStore.setConnectionEnabled(connectionId, false)
+                                helper.showStatusNotification(
+                                    connectionId,
+                                    ConnectionStatusTexts.errorTitle(message),
+                                    message
+                                )
                                 disconnectConnection(connectionId, emitDisconnected = false)
                             }
                             else -> settingsStore.setConnectionStatus(status, message)
@@ -128,8 +141,13 @@ class MessagingService : LifecycleService() {
                 onAuthError = { errorMessage ->
                     lifecycleScope.launch(Dispatchers.Main) {
                         val detailedError = "Verbindung $host:$port - $errorMessage"
-                        helper.updateServiceNotification(detailedError)
                         settingsStore.setConnectionEnabled(connectionId, false)
+                        helper.showStatusNotification(
+                            connectionId,
+                            ConnectionStatusTexts.errorTitle(detailedError),
+                            detailedError
+                        )
+                        helper.updateServiceNotification(buildServiceStatusMessage())
                         MessagingEventBus.tryEmit(
                             MessagingEvent.AuthError(detailedError, connectionId)
                         )
@@ -184,17 +202,16 @@ class MessagingService : LifecycleService() {
     }
 
     /**
-     * Baut den Notification-Text anhand der aktuell gehaltenen Verbindungen.
+     * Baut den Notification-Text anhand der aktivierten und gespeicherten Verbindungen.
      *
      * @return Statuszeile für die Vordergrund-Benachrichtigung
      */
     private fun buildServiceStatusMessage(): String {
-        val count = clientWrappers.size
-        return if (count <= 0) {
-            "Keine Verbindung aktiv"
-        } else {
-            "$count Verbindung${if (count == 1) "" else "en"} aktiv"
-        }
+        val connections = settingsStore.getConnectionsSnapshot()
+        return ConnectionStatusTexts.summary(
+            enabledCount = connections.count { it.isActive },
+            totalCount = connections.size
+        )
     }
 
     /**

@@ -53,6 +53,7 @@ import de.msjones.android.alarmapp.data.ServerSettings
 import de.msjones.android.alarmapp.data.ServerSettings.Companion.fromQrCode
 import de.msjones.android.alarmapp.event.MessagingEvent
 import de.msjones.android.alarmapp.event.MessagingEventBus
+import de.msjones.android.alarmapp.util.ConnectionStatusTexts
 
 /**
  * Navigationszustände innerhalb des Einstellungsbildschirms.
@@ -234,11 +235,7 @@ private fun SettingsListContent(
                 Column {
                     Text("Gespeicherte Verbindungen", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = if (enabledCount > 0) {
-                            "$enabledCount von ${connections.size} Verbindungen aktiv"
-                        } else {
-                            "Keine Verbindung aktiv"
-                        },
+                        text = ConnectionStatusTexts.summary(enabledCount, connections.size),
                         style = MaterialTheme.typography.bodySmall,
                         color = if (enabledCount > 0) {
                             MaterialTheme.colorScheme.primary
