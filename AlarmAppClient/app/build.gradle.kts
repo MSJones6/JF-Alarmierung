@@ -6,16 +6,23 @@ plugins {
 
 android {
     namespace = "de.msjones.android.alarmapp"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "de.msjones.android.alarmapp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 5
+        versionName = "1.2.2"
 
         vectorDrawables.useSupportLibrary = true
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Nur 64-Bit-ABIs für Play-16-KB-Anforderungen und Emulatoren.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
     }
 
     buildTypes {
@@ -30,13 +37,25 @@ android {
 
     buildFeatures { compose = true }
 
+    ndkVersion = "28.1.10738933"
+
     packaging {
+        jniLibs {
+            // Unkomprimierte .so mit 16-KB-ZIP-Alignment.
+            useLegacyPackaging = false
+            // Compose-graphics-path: RELRO nicht 16-KB-fähig; ab API 34 nutzt Compose die Plattform-API.
+            excludes += listOf("**/libandroidx.graphics.path.so")
+        }
         resources {
             excludes += listOf(
                 "META-INF/INDEX.LIST",
                 "META-INF/io.netty.versions.properties"
             )
         }
+    }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -45,7 +64,7 @@ kotlin {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2025.01.00")
+    val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
@@ -57,27 +76,22 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
-    implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.lifecycle.service)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.localbroadcastmanager)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.security.crypto)
 
-    implementation(libs.accompanist.systemuicontroller)
     implementation(libs.hivemq.mqtt.client)
     implementation(libs.androidx.appcompat)
     implementation(libs.kotlinx.coroutines.android)
 
-    // ML Kit Barcode Scanning
-    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    // QR-Scan über Play Services (keine nativen .so in der App-APK).
+    implementation(libs.play.services.code.scanner)
 
-    // CameraX
-    implementation("androidx.camera:camera-camera2:1.5.3")
-    implementation("androidx.camera:camera-lifecycle:1.5.3")
-    implementation("androidx.camera:camera-view:1.5.3")
-
+    testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
 }

@@ -1,9 +1,5 @@
 package de.msjones.android.alarmapp.ui
 
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -39,9 +35,9 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -51,15 +47,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import de.msjones.android.alarmapp.data.ServerSettings
 import de.msjones.android.alarmapp.data.ServerSettings.Companion.fromQrCode
-import de.msjones.android.alarmapp.ui.QrCodeScannerScreen
+import de.msjones.android.alarmapp.event.MessagingEvent
+import de.msjones.android.alarmapp.event.MessagingEventBus
 
+/**
+ * Navigationszustände innerhalb des Einstellungsbildschirms.
+ */
 sealed class SettingsScreenState {
     data object List : SettingsScreenState()
     data class Edit(val connection: ServerSettings) : SettingsScreenState()
@@ -67,6 +65,9 @@ sealed class SettingsScreenState {
     data object ScanQr : SettingsScreenState()
 }
 
+/**
+ * Bildschirm zur Verwaltung von MQTT-Verbindungen und des Messaging-Dienstes.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -80,7 +81,6 @@ fun SettingsScreen(
     onServiceFailed: () -> Unit = {},
     isServiceRunning: Boolean = false,
 ) {
-    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var authErrorMessage by remember { mutableStateOf<String?>(null) }
     var serviceEnabled by remember(isServiceRunning) { mutableStateOf(isServiceRunning) }
@@ -88,65 +88,33 @@ fun SettingsScreen(
     var screenState by remember { mutableStateOf<SettingsScreenState>(SettingsScreenState.List) }
     var scannedConnectionFromQr by remember { mutableStateOf<ServerSettings?>(null) }
 
-    // Register broadcast receiver for auth errors
-    val authErrorReceiver = remember {
-        object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == "AUTH_ERROR") {
-                    val errorMessage = intent.getStringExtra("error_message") ?: "Authentifizierungsfehler"
-                    authErrorMessage = errorMessage
+    LaunchedEffect(Unit) {
+        MessagingEventBus.events.collect { event ->
+            when (event) {
+                is MessagingEvent.AuthError -> {
+                    authErrorMessage = event.errorMessage
                 }
-            }
-        }
-    }
-
-    // Register broadcast receiver for stop all connections (e.g., due to connection error)
-    val stopAllReceiver = remember {
-        object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == "STOP_ALL_CONNECTIONS") {
+                is MessagingEvent.StopAllConnections -> {
                     serviceEnabled = false
-                    // Don't reset counter here - ERROR/DISCONNECTED broadcasts handle decrementing
                     screenState = SettingsScreenState.List
                 }
-            }
-        }
-    }
-
-    // Register broadcast receiver for service running state updates
-    val serviceRunningReceiver = remember {
-        object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == "SERVICE_RUNNING_STATE") {
-                    val isRunning = intent.getBooleanExtra("is_running", false)
-                    serviceEnabled = isRunning
-                    // Reset counter when service is stopped manually
-                    if (!isRunning && activeConnectionCount > 0) {
+                is MessagingEvent.ServiceRunningState -> {
+                    serviceEnabled = event.isRunning
+                    if (!event.isRunning && activeConnectionCount > 0) {
                         activeConnectionCount = 0
                     }
                 }
-            }
-        }
-    }
-
-    // Register broadcast receiver for connection state updates (to count active connections)
-    val connectionStateReceiver = remember {
-        object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == "CONNECTION_STATE") {
-                    val status = intent.getStringExtra("state_status") ?: ""
-                    when (status.uppercase()) {
-                        "SUBSCRIBED" -> {
-                            activeConnectionCount += 1
-                        }
+                is MessagingEvent.ConnectionState -> {
+                    when (event.status.uppercase()) {
+                        "SUBSCRIBED" -> activeConnectionCount += 1
                         "DISCONNECTED", "ERROR" -> {
-                            // Decrement only if we have active connections
                             if (activeConnectionCount > 0) {
                                 activeConnectionCount -= 1
                             }
                         }
                     }
                 }
+                else -> Unit
             }
         }
     }
@@ -161,30 +129,6 @@ fun SettingsScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        val authFilter = IntentFilter("AUTH_ERROR")
-        LocalBroadcastManager.getInstance(context).registerReceiver(authErrorReceiver, authFilter)
-
-        val stopAllFilter = IntentFilter("STOP_ALL_CONNECTIONS")
-        LocalBroadcastManager.getInstance(context).registerReceiver(stopAllReceiver, stopAllFilter)
-
-        val serviceRunningFilter = IntentFilter("SERVICE_RUNNING_STATE")
-        LocalBroadcastManager.getInstance(context).registerReceiver(serviceRunningReceiver, serviceRunningFilter)
-
-        val connectionStateFilter = IntentFilter("CONNECTION_STATE")
-        LocalBroadcastManager.getInstance(context).registerReceiver(connectionStateReceiver, connectionStateFilter)
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            LocalBroadcastManager.getInstance(context).unregisterReceiver(authErrorReceiver)
-            LocalBroadcastManager.getInstance(context).unregisterReceiver(stopAllReceiver)
-            LocalBroadcastManager.getInstance(context).unregisterReceiver(serviceRunningReceiver)
-            LocalBroadcastManager.getInstance(context).unregisterReceiver(connectionStateReceiver)
-        }
-    }
-
-    // Show form screen when in edit or add mode
     when (val state = screenState) {
         is SettingsScreenState.Add -> {
             ConnectionFormScreen(
@@ -228,13 +172,11 @@ fun SettingsScreen(
                         scannedConnectionFromQr = settings
                         screenState = SettingsScreenState.Add
                     } else {
-                        // Invalid QR code - show error and go back to list
                         screenState = SettingsScreenState.List
                     }
                 },
                 onCancel = { screenState = SettingsScreenState.List },
-                onError = { errorMessage ->
-                    // Show error and go back to list
+                onError = {
                     screenState = SettingsScreenState.List
                 }
             )
@@ -245,7 +187,6 @@ fun SettingsScreen(
                 connections = connections,
                 activeConnectionId = activeConnectionId,
                 serviceEnabled = serviceEnabled,
-                isServiceRunning = isServiceRunning,
                 activeConnectionCount = activeConnectionCount,
                 snackbarHostState = snackbarHostState,
                 onStartAllServices = onStartAllServices,
@@ -260,13 +201,15 @@ fun SettingsScreen(
     }
 }
 
+/**
+ * Listenansicht der gespeicherten Verbindungen inklusive Dienst-Schalter.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsListContent(
     connections: List<ServerSettings>,
     activeConnectionId: String?,
     serviceEnabled: Boolean,
-    isServiceRunning: Boolean,
     activeConnectionCount: Int,
     snackbarHostState: SnackbarHostState,
     onStartAllServices: () -> Unit,
@@ -286,7 +229,7 @@ private fun SettingsListContent(
         snackbarHost = {
             SnackbarHost(hostState = snackbarHostState) { data ->
                 Snackbar(action = {
-                    androidx.compose.material3.TextButton(
+                    TextButton(
                         onClick = { snackbarHostState.currentSnackbarData?.dismiss() }
                     ) { Text("OK") }
                 }) { Text(data.visuals.message) }
@@ -300,7 +243,6 @@ private fun SettingsListContent(
                 .padding(16.dp)
                 .statusBarsPadding()
         ) {
-            // Global service control
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -337,7 +279,6 @@ private fun SettingsListContent(
 
             Spacer(Modifier.height(24.dp))
 
-            // Header with title and add buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -382,6 +323,9 @@ private fun SettingsListContent(
     }
 }
 
+/**
+ * Karte für eine einzelne MQTT-Verbindung.
+ */
 @Composable
 private fun ConnectionCard(
     connection: ServerSettings,
@@ -435,7 +379,6 @@ private fun ConnectionCard(
                 }
             }
 
-            // Active indicator
             Box(
                 modifier = Modifier
                     .size(12.dp)
@@ -447,7 +390,6 @@ private fun ConnectionCard(
 
             Spacer(Modifier.width(8.dp))
 
-            // Edit button
             IconButton(onClick = onEdit) {
                 Icon(
                     imageVector = Icons.Default.Edit,
@@ -456,7 +398,6 @@ private fun ConnectionCard(
                 )
             }
 
-            // Delete button
             IconButton(onClick = onDelete) {
                 Icon(
                     imageVector = Icons.Default.Delete,

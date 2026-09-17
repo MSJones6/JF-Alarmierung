@@ -6,15 +6,19 @@ import android.content.Intent
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkRequest
-import java.util.concurrent.TimeUnit
 import de.msjones.android.alarmapp.worker.MessagingServiceStarterWorker
+import java.util.concurrent.TimeUnit
 
+/**
+ * Startet nach BOOT_COMPLETED zeitverzögert den Messaging-Service über WorkManager.
+ */
 class BootCompletedReceiver : BroadcastReceiver() {
 
+    /**
+     * Plant den Start des Messaging-Services, sobald das Gerät fertig gebootet hat.
+     */
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action == Intent.ACTION_BOOT_COMPLETED) {
-
-            // kleine Verzögerung, damit System Boot abgeschlossen hat
             val workRequest: WorkRequest = OneTimeWorkRequestBuilder<MessagingServiceStarterWorker>()
                 .setInitialDelay(2, TimeUnit.SECONDS)
                 .build()

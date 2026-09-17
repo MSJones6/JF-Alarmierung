@@ -37,6 +37,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import de.msjones.android.alarmapp.data.ServerSettings
 
+/**
+ * Formular zum Anlegen oder Bearbeiten einer MQTT-Verbindung.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConnectionFormScreen(

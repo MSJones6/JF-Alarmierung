@@ -1,15 +1,14 @@
 package de.msjones.android.alarmapp.data
 
 import android.content.Context
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
-private val Context.messageDataStore by preferencesDataStore("messages")
-
+/**
+ * Persistierte Alarmnachricht für die lokale Historie.
+ */
 data class AlarmMessage(
     val id: String,
     val keyword: String,
@@ -18,21 +17,18 @@ data class AlarmMessage(
     val timestamp: Long = System.currentTimeMillis()
 )
 
-object MessageKeys {
-    val MESSAGES = stringPreferencesKey("messages")
-}
+/**
+ * Speichert und lädt Alarmnachrichten über SharedPreferences (ohne native DataStore-Libs).
+ */
+class MessageStore(context: Context) {
 
-class MessageStore(private val context: Context) {
+    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val _messages = MutableStateFlow(loadMessages())
 
-    val flow: Flow<List<AlarmMessage>> = context.messageDataStore.data.map { prefs: Preferences ->
-        val messagesJson = prefs[MessageKeys.MESSAGES] ?: ""
-        if (messagesJson.isEmpty()) {
-            emptyList()
-        } else {
-            parseMessages(messagesJson)
-        }
-    }
+    /** Beobachtbare Liste aller gespeicherten Alarmnachrichten. */
+    val flow: Flow<List<AlarmMessage>> = _messages.asStateFlow()
 
+    /** Fügt eine neue Alarmnachricht am Anfang der Historie hinzu. */
     suspend fun addMessage(keyword: String, location: String, extras: String) {
         val newMessage = AlarmMessage(
             id = System.currentTimeMillis().toString(),
@@ -40,34 +36,37 @@ class MessageStore(private val context: Context) {
             location = location,
             extras = extras
         )
-
-        context.messageDataStore.edit { prefs ->
-            val currentJson = prefs[MessageKeys.MESSAGES] ?: ""
-            val currentMessages = if (currentJson.isEmpty()) {
-                emptyList()
-            } else {
-                parseMessages(currentJson)
-            }
-            val updatedMessages = listOf(newMessage) + currentMessages
-            prefs[MessageKeys.MESSAGES] = serializeMessages(updatedMessages)
+        _messages.update { current ->
+            val updated = listOf(newMessage) + current
+            persist(updated)
+            updated
         }
     }
 
+    /** Entfernt eine Nachricht anhand ihrer ID. */
     suspend fun removeMessage(id: String) {
-        context.messageDataStore.edit { prefs ->
-            val currentJson = prefs[MessageKeys.MESSAGES] ?: ""
-            if (currentJson.isNotEmpty()) {
-                val currentMessages = parseMessages(currentJson)
-                val updatedMessages = currentMessages.filter { it.id != id }
-                prefs[MessageKeys.MESSAGES] = serializeMessages(updatedMessages)
-            }
+        _messages.update { current ->
+            val updated = current.filter { it.id != id }
+            persist(updated)
+            updated
         }
     }
 
+    /** Löscht die gesamte Nachrichtenhistorie. */
     suspend fun clearAllMessages() {
-        context.messageDataStore.edit { prefs ->
-            prefs[MessageKeys.MESSAGES] = ""
-        }
+        persist(emptyList())
+        _messages.value = emptyList()
+    }
+
+    /** Lädt Nachrichten aus SharedPreferences. */
+    private fun loadMessages(): List<AlarmMessage> {
+        val json = prefs.getString(KEY_MESSAGES, "").orEmpty()
+        return if (json.isEmpty()) emptyList() else parseMessages(json)
+    }
+
+    /** Schreibt die Nachrichtenliste persistent. */
+    private fun persist(messages: List<AlarmMessage>) {
+        prefs.edit().putString(KEY_MESSAGES, serializeMessages(messages)).apply()
     }
 
     private fun parseMessages(json: String): List<AlarmMessage> {
@@ -93,5 +92,10 @@ class MessageStore(private val context: Context) {
         return messages.joinToString("|||") { msg ->
             "${msg.id}###${msg.keyword}###${msg.location}###${msg.extras}###${msg.timestamp}"
         }
+    }
+
+    companion object {
+        private const val PREFS_NAME = "messages"
+        private const val KEY_MESSAGES = "messages"
     }
 }

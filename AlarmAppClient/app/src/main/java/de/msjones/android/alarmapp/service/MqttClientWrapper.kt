@@ -12,6 +12,9 @@ import kotlinx.coroutines.launch
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicBoolean
 
+/**
+ * Kapselt eine MQTT-3-Verbindung inkl. Subscribe, Auto-Reconnect und Status-Callbacks.
+ */
 class MqttClientWrapper(
     private val context: Context,
     private val lifecycleOwner: LifecycleOwner,
@@ -28,6 +31,9 @@ class MqttClientWrapper(
     private var client: Mqtt3AsyncClient? = null
     private val isConnected = AtomicBoolean(false)
 
+    /**
+     * Stellt die MQTT-Verbindung her und abonniert das konfigurierte Topic.
+     */
     suspend fun connect() {
         try {
             val protocol = if (serverUri.startsWith("ssl://")) "ssl" else "tcp"
@@ -113,6 +119,11 @@ class MqttClientWrapper(
         }
     }
 
+    /**
+     * Abonniert ein Topic und leitet eingehende Payloads an [onMessage] weiter.
+     *
+     * @param topic MQTT-Topic-Filter
+     */
     private suspend fun subscribe(topic: String) {
         try {
             client?.subscribeWith()
@@ -140,6 +151,7 @@ class MqttClientWrapper(
         }
     }
 
+    /** Trennt die Verbindung und wartet auf den Abschluss. */
     suspend fun disconnectAndWait() {
         try {
             client?.disconnect()?.await()
@@ -150,5 +162,6 @@ class MqttClientWrapper(
         }
     }
 
+    /** Gibt an, ob der Client aktuell verbunden ist. */
     fun isConnected(): Boolean = isConnected.get()
 }
