@@ -12,15 +12,14 @@ android {
         applicationId = "de.msjones.android.alarmapp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.2.1"
+        versionCode = 5
+        versionName = "1.2.2"
 
         vectorDrawables.useSupportLibrary = true
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Nur 64-Bit-ABIs: ML-Kit-Barhopper ist auf 32-Bit (armeabi-v7a/x86) nur 4-KB-aligniert
-        // und löst sonst die Systemwarnung „isn't 16 KB compatible“ aus.
+        // Nur 64-Bit-ABIs für Play-16-KB-Anforderungen und Emulatoren.
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
@@ -38,13 +37,14 @@ android {
 
     buildFeatures { compose = true }
 
-    // NDK r28+ erzeugt standardmäßig 16-KB-alignte native Bibliotheken.
     ndkVersion = "28.1.10738933"
 
     packaging {
         jniLibs {
-            // Unkomprimierte .so mit 16-KB-ZIP-Alignment (Play-Store-Anforderung).
+            // Unkomprimierte .so mit 16-KB-ZIP-Alignment.
             useLegacyPackaging = false
+            // Compose-graphics-path: RELRO nicht 16-KB-fähig; ab API 34 nutzt Compose die Plattform-API.
+            excludes += listOf("**/libandroidx.graphics.path.so")
         }
         resources {
             excludes += listOf(
@@ -76,7 +76,6 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
-    implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.lifecycle.service)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -90,13 +89,8 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.kotlinx.coroutines.android)
 
-    // ML Kit Barcode Scanning (bundled, 16-KB-kompatibel ab 17.3.0)
-    implementation(libs.mlkit.barcode.scanning)
-
-    // CameraX
-    implementation(libs.androidx.camera.camera2)
-    implementation(libs.androidx.camera.lifecycle)
-    implementation(libs.androidx.camera.view)
+    // QR-Scan über Play Services (keine nativen .so in der App-APK).
+    implementation(libs.play.services.code.scanner)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

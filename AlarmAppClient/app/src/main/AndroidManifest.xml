@@ -21,6 +21,11 @@
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.JFAlarmApp">
 
+        <!-- Play-Services-Code-Scanner optional vorab laden -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="barcode_ui"/>
+
         <!-- Hauptaktivität -->
         <activity
             android:name=".MainActivity"
