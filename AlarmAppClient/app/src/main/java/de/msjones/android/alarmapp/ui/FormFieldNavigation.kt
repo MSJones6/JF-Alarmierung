@@ -54,26 +54,41 @@ object FormFieldNavigation {
         }
         return FormFocusMove.NONE
     }
+
+    /**
+     * Prüft, ob vom letzten Eingabefeld zurück auf das erste gesprungen werden soll.
+     *
+     * @param move ermittelte Fokusbewegung
+     * @param isLastField true, wenn das aktuelle Feld das letzte Eingabefeld ist
+     * @return true, wenn der Fokus auf das erste Feld gelegt werden soll
+     */
+    fun shouldWrapToFirst(move: FormFocusMove, isLastField: Boolean): Boolean {
+        return isLastField && move == FormFocusMove.NEXT
+    }
 }
 
 /**
  * Verschiebt den Fokus bei Tab oder Enter auf das nächste bzw. vorherige Feld.
  *
+ * Am letzten Feld springt die Vorwärtsbewegung auf das erste Eingabefeld zurück.
+ *
  * @param focusManager Fokusverwaltung des aktuellen Compose-Baums
  * @param isLastField true, wenn es kein weiteres Eingabefeld gibt
+ * @param onWrapToFirst setzt den Fokus auf das erste Eingabefeld
  */
 fun Modifier.moveFocusOnTabOrEnter(
     focusManager: FocusManager,
-    isLastField: Boolean = false
+    isLastField: Boolean = false,
+    onWrapToFirst: () -> Unit = {}
 ): Modifier = onPreviewKeyEvent { event ->
-    when (FormFieldNavigation.focusMoveFor(event)) {
+    when (val move = FormFieldNavigation.focusMoveFor(event)) {
         FormFocusMove.PREVIOUS -> {
             focusManager.moveFocus(FocusDirection.Previous)
             true
         }
         FormFocusMove.NEXT -> {
-            if (isLastField) {
-                focusManager.clearFocus()
+            if (FormFieldNavigation.shouldWrapToFirst(move, isLastField)) {
+                onWrapToFirst()
             } else {
                 focusManager.moveFocus(FocusDirection.Next)
             }

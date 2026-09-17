@@ -48,6 +48,15 @@ class FormFieldNavigationTest {
         )
     }
 
+    /** Am letzten Feld führt Vorwärtsbewegung zurück zum ersten Feld. */
+    @Test
+    fun shouldWrapToFirst_onlyOnLastFieldNext() {
+        assertEquals(true, FormFieldNavigation.shouldWrapToFirst(FormFocusMove.NEXT, isLastField = true))
+        assertEquals(false, FormFieldNavigation.shouldWrapToFirst(FormFocusMove.NEXT, isLastField = false))
+        assertEquals(false, FormFieldNavigation.shouldWrapToFirst(FormFocusMove.PREVIOUS, isLastField = true))
+        assertEquals(false, FormFieldNavigation.shouldWrapToFirst(FormFocusMove.NONE, isLastField = true))
+    }
+
     /**
      * Erzeugt ein Compose-Tastaturereignis für das Drücken einer Taste.
      *

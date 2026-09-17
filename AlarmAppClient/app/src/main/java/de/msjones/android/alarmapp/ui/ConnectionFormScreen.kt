@@ -36,6 +36,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -48,6 +50,7 @@ import de.msjones.android.alarmapp.data.ServerSettings
  * Formular zum Anlegen oder Bearbeiten einer MQTT-Verbindung.
  *
  * Tab und Enter setzen den Fokus auf das nächste Eingabefeld, Umschalt+Tab auf das vorherige.
+ * Nach dem letzten Feld beginnt der Durchlauf wieder beim Host.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,6 +78,7 @@ fun ConnectionFormScreen(
     var pass by rememberSaveable { mutableStateOf(editingConnection?.password ?: initialPass ?: "") }
     var topic by rememberSaveable { mutableStateOf(editingConnection?.topic ?: initialTopic ?: "JF/Alarm/KB") }
     val focusManager = LocalFocusManager.current
+    val firstFieldFocus = remember { FocusRequester() }
 
     LaunchedEffect(duplicateConnectionMessage) {
         duplicateConnectionMessage?.let { message ->
@@ -130,6 +134,7 @@ fun ConnectionFormScreen(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .focusRequester(firstFieldFocus)
                     .moveFocusOnTabOrEnter(focusManager)
             )
             Spacer(Modifier.height(8.dp))
@@ -191,13 +196,17 @@ fun ConnectionFormScreen(
                 onValueChange = { topic = it },
                 label = { Text("Queue-Name") },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 keyboardActions = KeyboardActions(
-                    onDone = { focusManager.clearFocus() }
+                    onNext = { firstFieldFocus.requestFocus() }
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .moveFocusOnTabOrEnter(focusManager, isLastField = true)
+                    .moveFocusOnTabOrEnter(
+                        focusManager = focusManager,
+                        isLastField = true,
+                        onWrapToFirst = { firstFieldFocus.requestFocus() }
+                    )
             )
 
             Spacer(Modifier.height(24.dp))
