@@ -5,6 +5,7 @@ Ein umfassendes Alarmbenachrichtigungssystem, das aus drei Hauptkomponenten best
 - **AlarmAppFrontend**: Webbasierte Schnittstelle zum Senden von Alarmmeldungen
 - **AlarmAppClient**: Android App zum Empfang von Alarmmeldungen
 - **MessageSender**: Backend-Dienst zur Erstellung und Weiterleitung von Alarmen
+- Test
 
 ## Haftungsausschluss
 Das komplette Projekt ist ein reines Hobby Projekt.
