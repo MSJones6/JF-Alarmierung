@@ -24,7 +24,6 @@ import de.msjones.android.alarmapp.ui.MessageListScreen
 import de.msjones.android.alarmapp.ui.MessageViewModel
 import de.msjones.android.alarmapp.ui.SettingsScreen
 import de.msjones.android.alarmapp.ui.theme.JFAlarmTheme
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -67,6 +66,7 @@ class MainActivity : ComponentActivity() {
                 when (event) {
                     is MessagingEvent.StopAllConnections -> {
                         stopMessagingService()
+                        store.disableAllConnections()
                         store.clearConnectionStatus()
                     }
                     is MessagingEvent.AuthError -> {
@@ -86,7 +86,6 @@ class MainActivity : ComponentActivity() {
                 val msgViewModel: MessageViewModel = viewModel()
 
                 val connections by store.flow.collectAsState(initial = emptyList())
-                val activeConnectionId by store.activeConnectionId.collectAsState(initial = null)
 
                 NavHost(navController = navController, startDestination = "messages") {
                     composable("messages") {
@@ -100,54 +99,39 @@ class MainActivity : ComponentActivity() {
                     composable("settings") {
                         SettingsScreen(
                             connections = connections,
-                            activeConnectionId = activeConnectionId,
-                            onSaveConnection = { s ->
+                            onSaveConnection = { settings ->
                                 lifecycleScope.launch {
-                                    store.saveConnection(s)
-                                    if (connections.isEmpty()) {
-                                        store.setActiveConnection(s.id)
+                                    store.saveConnection(settings)
+                                    if (settings.isActive && settings.host.isNotBlank()) {
+                                        startMessagingService(settings)
                                     }
                                 }
                             },
                             onDeleteConnection = { id ->
                                 lifecycleScope.launch {
+                                    val existing = store.getConnectionsSnapshot().find { it.id == id }
+                                    if (existing?.isActive == true) {
+                                        stopMessagingConnection(id)
+                                    }
                                     store.deleteConnection(id)
-                                    if (activeConnectionId == id) {
-                                        store.clearActiveConnection()
-                                    }
                                 }
                             },
-                            onSetActiveConnection = { id ->
+                            onToggleConnection = { connection, enabled ->
                                 lifecycleScope.launch {
-                                    val allConnections = store.flow.first()
-                                    for (connection in allConnections) {
-                                        val updated = connection.copy(isActive = connection.id == id)
-                                        store.saveConnection(updated)
+                                    store.setConnectionEnabled(connection.id, enabled)
+                                    if (enabled) {
+                                        startMessagingService(connection.copy(isActive = true))
+                                    } else {
+                                        stopMessagingConnection(connection.id)
                                     }
-                                    store.setActiveConnection(id)
                                 }
                             },
-                            onStartAllServices = {
-                                connections.forEach { connection ->
-                                    startMessagingService(connection)
+                            onConnectionFailed = { connectionId ->
+                                lifecycleScope.launch {
+                                    store.setConnectionEnabled(connectionId, false)
+                                    stopMessagingConnection(connectionId)
                                 }
-                                MessagingEventBus.tryEmit(
-                                    MessagingEvent.ServiceRunningState(true)
-                                )
-                            },
-                            onStopAllServices = {
-                                stopMessagingService()
-                                MessagingEventBus.tryEmit(
-                                    MessagingEvent.ServiceRunningState(false)
-                                )
-                            },
-                            onServiceFailed = {
-                                stopMessagingService()
-                                MessagingEventBus.tryEmit(
-                                    MessagingEvent.ServiceRunningState(false)
-                                )
-                            },
-                            isServiceRunning = MessagingService.isRunning()
+                            }
                         )
                     }
                 }
@@ -176,6 +160,22 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * Trennt eine einzelne MQTT-Verbindung im laufenden Dienst.
+     *
+     * @param connectionId Kennung der zu trennenden Verbindung
+     */
+    private fun stopMessagingConnection(connectionId: String) {
+        if (!MessagingService.isRunning()) {
+            return
+        }
+        val intent = Intent(this, MessagingService::class.java).apply {
+            putExtra(MessagingService.EXTRA_ACTION, MessagingService.ACTION_DISCONNECT)
+            putExtra(MessagingService.EXTRA_CONNECTION_ID, connectionId)
+        }
+        startForegroundService(intent)
+    }
+
+    /**
      * Startet den Messaging-Service für eine gespeicherte Verbindung.
      *
      * @param settings Verbindungsparameter zum MQTT-Broker
@@ -189,6 +189,7 @@ class MainActivity : ComponentActivity() {
             putExtra(MessagingService.EXTRA_TOPIC, settings.topic)
             putExtra(MessagingService.EXTRA_CONNECTION_ID, settings.id)
             putExtra(MessagingService.EXTRA_SSL, settings.ssl)
+            putExtra(MessagingService.EXTRA_ACTION, MessagingService.ACTION_CONNECT)
         }
         startForegroundService(intent)
     }

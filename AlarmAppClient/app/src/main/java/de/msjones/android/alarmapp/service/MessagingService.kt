@@ -12,17 +12,18 @@ import de.msjones.android.alarmapp.util.NotificationHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Foreground-Service, der MQTT-Verbindungen hält und Alarmnachrichten empfängt.
+ * Foreground-Service, der MQTT-Verbindungen unabhängig voneinander hält und Alarmnachrichten empfängt.
  */
 class MessagingService : LifecycleService() {
 
     private lateinit var helper: NotificationHelper
     private lateinit var settingsStore: SettingsStore
-    private val clientWrappers = mutableMapOf<String, MqttClientWrapper>()
-    private var job: Job? = null
+    private val clientWrappers = ConcurrentHashMap<String, MqttClientWrapper>()
+    private val connectionJobs = ConcurrentHashMap<String, Job>()
 
     companion object {
         const val EXTRA_HOST = "host"
@@ -32,6 +33,9 @@ class MessagingService : LifecycleService() {
         const val EXTRA_TOPIC = "topic"
         const val EXTRA_CONNECTION_ID = "connection_id"
         const val EXTRA_SSL = "ssl"
+        const val EXTRA_ACTION = "action"
+        const val ACTION_CONNECT = "connect"
+        const val ACTION_DISCONNECT = "disconnect"
 
         private val running = AtomicBoolean(false)
 
@@ -55,15 +59,23 @@ class MessagingService : LifecycleService() {
             helper.buildServiceNotification("Service startet …")
         )
 
+        val action = intent?.getStringExtra(EXTRA_ACTION) ?: ACTION_CONNECT
+        val connectionId = intent?.getStringExtra(EXTRA_CONNECTION_ID) ?: "unknown"
+
+        if (action == ACTION_DISCONNECT) {
+            disconnectConnection(connectionId, emitDisconnected = true)
+            return START_STICKY
+        }
+
         val host = intent?.getStringExtra(EXTRA_HOST)
         val port = intent?.getIntExtra(EXTRA_PORT, 1883) ?: 1883
         val username = intent?.getStringExtra(EXTRA_USERNAME) ?: ""
         val password = intent?.getStringExtra(EXTRA_PASSWORD) ?: ""
         val topic = intent?.getStringExtra(EXTRA_TOPIC) ?: "JF/Alarm/KB"
-        val connectionId = intent?.getStringExtra(EXTRA_CONNECTION_ID) ?: "unknown"
         val ssl = intent?.getBooleanExtra(EXTRA_SSL, false) ?: false
 
-        job = lifecycleScope.launch(Dispatchers.IO) {
+        connectionJobs.remove(connectionId)?.cancel()
+        connectionJobs[connectionId] = lifecycleScope.launch(Dispatchers.IO) {
             if (host.isNullOrBlank()) {
                 helper.updateServiceNotification("Bitte Serverdaten speichern.")
                 return@launch
@@ -72,7 +84,7 @@ class MessagingService : LifecycleService() {
             val protocol = if (ssl) "ssl" else "tcp"
             val serverUri = "${protocol}://${host}:${port}"
 
-            clientWrappers[connectionId]?.disconnectAndWait()
+            clientWrappers.remove(connectionId)?.disconnectAndWait(emitState = false)
 
             clientWrappers[connectionId] = MqttClientWrapper(
                 context = this@MessagingService,
@@ -101,14 +113,15 @@ class MessagingService : LifecycleService() {
                             "DISCONNECTED" -> settingsStore.setDisconnected(message)
                             "ERROR" -> {
                                 settingsStore.setConnectionError(message)
-                                MessagingEventBus.tryEmit(MessagingEvent.StopAllConnections)
+                                settingsStore.setConnectionEnabled(connectionId, false)
+                                disconnectConnection(connectionId, emitDisconnected = false)
                             }
                             else -> settingsStore.setConnectionStatus(status, message)
                         }
 
-                        helper.updateServiceNotification(message)
+                        helper.updateServiceNotification(buildServiceStatusMessage())
                         MessagingEventBus.tryEmit(
-                            MessagingEvent.ConnectionState(status, message)
+                            MessagingEvent.ConnectionState(status, message, connectionId)
                         )
                     }
                 },
@@ -116,7 +129,11 @@ class MessagingService : LifecycleService() {
                     lifecycleScope.launch(Dispatchers.Main) {
                         val detailedError = "Verbindung $host:$port - $errorMessage"
                         helper.updateServiceNotification(detailedError)
-                        MessagingEventBus.tryEmit(MessagingEvent.AuthError(detailedError))
+                        settingsStore.setConnectionEnabled(connectionId, false)
+                        MessagingEventBus.tryEmit(
+                            MessagingEvent.AuthError(detailedError, connectionId)
+                        )
+                        disconnectConnection(connectionId, emitDisconnected = true)
                     }
                 }
             )
@@ -128,9 +145,10 @@ class MessagingService : LifecycleService() {
     }
 
     override fun onDestroy() {
-        job?.cancel()
+        connectionJobs.values.forEach { it.cancel() }
+        connectionJobs.clear()
         lifecycleScope.launch(Dispatchers.IO) {
-            clientWrappers.values.forEach { it.disconnectAndWait() }
+            clientWrappers.values.forEach { it.disconnectAndWait(emitState = false) }
             clientWrappers.clear()
         }
         running.set(false)
@@ -140,6 +158,43 @@ class MessagingService : LifecycleService() {
 
     override fun onBind(intent: Intent): IBinder? {
         return super.onBind(intent)
+    }
+
+    /**
+     * Trennt genau eine MQTT-Verbindung und beendet den Dienst, wenn keine mehr übrig ist.
+     *
+     * @param connectionId Kennung der zu trennenden Verbindung
+     * @param emitDisconnected ob ein DISCONNECTED-Ereignis für die UI gesendet werden soll
+     */
+    private fun disconnectConnection(connectionId: String, emitDisconnected: Boolean) {
+        connectionJobs.remove(connectionId)?.cancel()
+        lifecycleScope.launch(Dispatchers.IO) {
+            clientWrappers.remove(connectionId)?.disconnectAndWait(emitState = false)
+            if (emitDisconnected) {
+                MessagingEventBus.tryEmit(
+                    MessagingEvent.ConnectionState("DISCONNECTED", "Getrennt", connectionId)
+                )
+            }
+            if (clientWrappers.isEmpty()) {
+                stopSelf()
+            } else {
+                helper.updateServiceNotification(buildServiceStatusMessage())
+            }
+        }
+    }
+
+    /**
+     * Baut den Notification-Text anhand der aktuell gehaltenen Verbindungen.
+     *
+     * @return Statuszeile für die Vordergrund-Benachrichtigung
+     */
+    private fun buildServiceStatusMessage(): String {
+        val count = clientWrappers.size
+        return if (count <= 0) {
+            "Keine Verbindung aktiv"
+        } else {
+            "$count Verbindung${if (count == 1) "" else "en"} aktiv"
+        }
     }
 
     /**

@@ -8,7 +8,7 @@ import de.msjones.android.alarmapp.data.SettingsStore
 import de.msjones.android.alarmapp.service.MessagingService
 
 /**
- * Startet nach dem Geräteneustart den Messaging-Service für alle gespeicherten Verbindungen.
+ * Startet nach dem Geräteneustart den Messaging-Service für alle aktivierten Verbindungen.
  */
 class MessagingServiceStarterWorker(
     context: Context,
@@ -16,7 +16,7 @@ class MessagingServiceStarterWorker(
 ) : CoroutineWorker(context, workerParams) {
 
     /**
-     * Lädt gespeicherte Verbindungen und startet den Foreground-Service.
+     * Lädt aktivierte Verbindungen und startet den Foreground-Service.
      *
      * @return Erfolg oder Retry bei Fehlern
      */
@@ -24,7 +24,7 @@ class MessagingServiceStarterWorker(
         return try {
             val store = SettingsStore.getInstance(applicationContext)
             store.migrateIfNeeded()
-            val connections = store.getConnectionsSnapshot()
+            val connections = store.getEnabledConnectionsSnapshot()
 
             if (connections.isEmpty()) {
                 return Result.success()
@@ -39,6 +39,7 @@ class MessagingServiceStarterWorker(
                     putExtra(MessagingService.EXTRA_TOPIC, settings.topic)
                     putExtra(MessagingService.EXTRA_CONNECTION_ID, settings.id)
                     putExtra(MessagingService.EXTRA_SSL, settings.ssl)
+                    putExtra(MessagingService.EXTRA_ACTION, MessagingService.ACTION_CONNECT)
                 }
                 applicationContext.startForegroundService(serviceIntent)
             }

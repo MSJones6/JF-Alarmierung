@@ -22,14 +22,16 @@ sealed class MessagingEvent {
      */
     data class ConnectionState(
         val status: String,
-        val message: String
+        val message: String,
+        val connectionId: String = ""
     ) : MessagingEvent()
 
     /**
      * Authentifizierung am Broker ist fehlgeschlagen.
      */
     data class AuthError(
-        val errorMessage: String
+        val errorMessage: String,
+        val connectionId: String = ""
     ) : MessagingEvent()
 
     /**

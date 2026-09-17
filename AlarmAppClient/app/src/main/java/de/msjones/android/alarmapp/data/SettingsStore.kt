@@ -92,8 +92,9 @@ data class ServerSettings(
 /**
  * Persistente Verwaltung der MQTT-Verbindungen (verschlüsselt) und des Verbindungsstatus.
  *
- * Prozessweiter Singleton: Service, Activity und ViewModel müssen dieselbe Instanz nutzen,
- * damit Status-Updates in der UI ankommen.
+ * Jede Verbindung kann unabhängig aktiviert werden. Prozessweiter Singleton:
+ * Service, Activity und ViewModel müssen dieselbe Instanz nutzen, damit Status-Updates
+ * in der UI ankommen.
  */
 class SettingsStore private constructor(context: Context) {
 
@@ -175,25 +176,59 @@ class SettingsStore private constructor(context: Context) {
             currentConnections.add(settings)
         }
 
-        val jsonArray = JSONArray()
-        currentConnections.forEach { jsonArray.put(it.toJson()) }
-
-        encryptedPrefs.edit().putString(KEY_CONNECTIONS, jsonArray.toString()).apply()
-        _connectionsFlow.value = currentConnections
+        persistConnections(currentConnections)
     }
 
     /** Löscht eine Verbindung anhand ihrer ID. */
     suspend fun deleteConnection(id: String) {
         val updatedConnections = _connectionsFlow.value.filter { it.id != id }
-        val jsonArray = JSONArray()
-        updatedConnections.forEach { jsonArray.put(it.toJson()) }
-
-        encryptedPrefs.edit().putString(KEY_CONNECTIONS, jsonArray.toString()).apply()
-        _connectionsFlow.value = updatedConnections
+        persistConnections(updatedConnections)
 
         if (getActiveConnectionId() == id) {
             clearActiveConnection()
         }
+    }
+
+    /**
+     * Aktiviert oder deaktiviert eine einzelne Verbindung, ohne andere zu verändern.
+     *
+     * @param id Kennung der Verbindung
+     * @param enabled gewünschter Aktiv-Status
+     */
+    suspend fun setConnectionEnabled(id: String, enabled: Boolean) {
+        val updatedConnections = ConnectionActivation.setEnabled(_connectionsFlow.value, id, enabled)
+        persistConnections(updatedConnections)
+
+        if (enabled) {
+            setActiveConnection(id)
+        } else if (getActiveConnectionId() == id) {
+            val nextEnabled = ConnectionActivation.enabledForService(updatedConnections).firstOrNull()
+            if (nextEnabled != null) {
+                setActiveConnection(nextEnabled.id)
+            } else {
+                clearActiveConnection()
+            }
+        }
+    }
+
+    /**
+     * Deaktiviert alle gespeicherten Verbindungen.
+     */
+    suspend fun disableAllConnections() {
+        persistConnections(ConnectionActivation.disableAll(_connectionsFlow.value))
+        clearActiveConnection()
+    }
+
+    /**
+     * Schreibt die Verbindungsliste verschlüsselt und aktualisiert den Flow.
+     *
+     * @param connections neue Verbindungsliste
+     */
+    private fun persistConnections(connections: List<ServerSettings>) {
+        val jsonArray = JSONArray()
+        connections.forEach { jsonArray.put(it.toJson()) }
+        encryptedPrefs.edit().putString(KEY_CONNECTIONS, jsonArray.toString()).apply()
+        _connectionsFlow.value = connections
     }
 
     /** Setzt die aktive Verbindung. */
@@ -248,6 +283,10 @@ class SettingsStore private constructor(context: Context) {
 
     /** Liefert eine Momentaufnahme aller gespeicherten Verbindungen. */
     fun getConnectionsSnapshot(): List<ServerSettings> = _connectionsFlow.value
+
+    /** Liefert eine Momentaufnahme aller aktivierten Verbindungen mit Host. */
+    fun getEnabledConnectionsSnapshot(): List<ServerSettings> =
+        ConnectionActivation.enabledForService(_connectionsFlow.value)
 
     companion object {
         private const val STATUS_PREFS = "connection_status_prefs"

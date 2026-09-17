@@ -79,6 +79,7 @@ class ServerSettingsQrCodeTest {
         assertEquals("secret", settings?.password)
         assertEquals("JF/Alarm/#", settings?.topic)
         assertTrue(settings?.ssl == true)
+        assertFalse(settings?.isActive == true)
     }
 
     /** Fremder Originator wird abgelehnt. */

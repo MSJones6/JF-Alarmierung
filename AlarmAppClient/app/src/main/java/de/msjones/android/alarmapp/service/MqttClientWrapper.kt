@@ -164,14 +164,22 @@ class MqttClientWrapper(
         }
     }
 
-    /** Trennt die Verbindung und wartet auf den Abschluss. */
-    suspend fun disconnectAndWait() {
+    /**
+     * Trennt die Verbindung und wartet auf den Abschluss.
+     *
+     * @param emitState ob Statusänderungen an [onState] gemeldet werden sollen
+     */
+    suspend fun disconnectAndWait(emitState: Boolean = true) {
         try {
             client?.disconnect()?.await()
             isConnected.set(false)
-            onState("DISCONNECTED:Getrennt")
+            if (emitState) {
+                onState("DISCONNECTED:Getrennt")
+            }
         } catch (e: Exception) {
-            onState("ERROR:Fehler beim Trennen: ${e.message}")
+            if (emitState) {
+                onState("ERROR:Fehler beim Trennen: ${e.message}")
+            }
         }
     }
 

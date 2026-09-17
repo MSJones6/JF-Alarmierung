@@ -30,6 +30,28 @@ class MessagingEventBusTest {
         assertTrue(event.isRunning)
     }
 
+    /** Prüft, dass ConnectionState die Verbindungs-ID trägt. */
+    @Test
+    fun tryEmit_connectionStateCarriesConnectionId() = runBlocking {
+        val deferred = async {
+            withTimeout(2000) {
+                MessagingEventBus.events.first {
+                    it is MessagingEvent.ConnectionState && it.connectionId == "conn-1"
+                }
+            }
+        }
+        kotlinx.coroutines.delay(50)
+        assertTrue(
+            MessagingEventBus.tryEmit(
+                MessagingEvent.ConnectionState("CONNECTED", "Verbunden", "conn-1")
+            )
+        )
+        val event = deferred.await() as MessagingEvent.ConnectionState
+        assertEquals("CONNECTED", event.status)
+        assertEquals("Verbunden", event.message)
+        assertEquals("conn-1", event.connectionId)
+    }
+
     /** Prüft NewMessage-Payload. */
     @Test
     fun tryEmit_newMessageCarriesPayload() = runBlocking {
