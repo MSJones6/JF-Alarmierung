@@ -91,6 +91,37 @@ class ConnectionStatusTextsTest {
         )
     }
 
+    /** Die Warteanzeige enthält die Restsekunden. */
+    @Test
+    fun waitingMessage_appendsRemainingSeconds() {
+        assertEquals(
+            "Verbinden mit mqtt.local:1883 (warten...5s)",
+            ConnectionStatusTexts.waitingMessage(
+                ConnectionPhase.CONNECTING,
+                "mqtt.local:1883",
+                5
+            )
+        )
+        assertEquals(
+            "Reconnect zu mqtt.local:1883 (warten...12s)",
+            ConnectionStatusTexts.waitingMessage(
+                ConnectionPhase.RECONNECTING,
+                "mqtt.local:1883",
+                12
+            )
+        )
+    }
+
+    /** Der Erstversuch-Fehler ist eindeutig formuliert. */
+    @Test
+    fun noConnectionPossible_includesHost() {
+        assertEquals("Keine Verbindung möglich", ConnectionStatusTexts.noConnectionPossible())
+        assertEquals(
+            "Keine Verbindung möglich zu mqtt.local:1883",
+            ConnectionStatusTexts.noConnectionPossible("mqtt.local:1883")
+        )
+    }
+
     /** Ausgeschaltete Verbindungen gelten als Offline. */
     @Test
     fun fromRuntime_disabledIsOffline() {
@@ -118,6 +149,15 @@ class ConnectionStatusTextsTest {
         assertEquals(ConnectionPhase.CONNECTING, ConnectionPhase.fromStatus("CONNECTED"))
         assertEquals(ConnectionPhase.OFFLINE, ConnectionPhase.fromStatus("OFFLINE"))
         assertEquals(ConnectionPhase.OFFLINE, ConnectionPhase.fromStatus("ERROR"))
+    }
+
+    /** Erstversuch-Fehler erhalten einen klaren Titel. */
+    @Test
+    fun errorTitle_detectsNoConnectionPossible() {
+        assertEquals(
+            "Keine Verbindung möglich",
+            ConnectionStatusTexts.errorTitle("Keine Verbindung möglich zu mqtt.local:1883")
+        )
     }
 
     /** Erreichbarkeitsfehler erhalten einen kurzen Notification-Titel. */

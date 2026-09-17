@@ -45,7 +45,7 @@ fun MessageListScreen(
         if (connectionStatus.status.uppercase() == "ERROR" && connectionStatus.message.isNotEmpty()) {
             snackbarHostState.showSnackbar(
                 message = connectionStatus.message,
-                duration = SnackbarDuration.Long
+                duration = SnackbarDuration.Short
             )
             // Clear error after showing
             viewModel.clearConnectionStatus()

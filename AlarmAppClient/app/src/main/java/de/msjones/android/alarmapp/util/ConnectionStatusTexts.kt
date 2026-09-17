@@ -87,6 +87,34 @@ object ConnectionStatusTexts {
     }
 
     /**
+     * Phasenmeldung inklusive Restwartezeit.
+     *
+     * @param phase aktuelle Verbindungsphase
+     * @param host Anzeigename des Brokers
+     * @param remainingSeconds noch zu wartende Sekunden
+     * @return z. B. „Verbinden mit host (warten...5s)“
+     */
+    fun waitingMessage(phase: ConnectionPhase, host: String, remainingSeconds: Int): String {
+        val seconds = remainingSeconds.coerceAtLeast(0)
+        return "${phaseMessage(phase, host)} (warten...${seconds}s)"
+    }
+
+    /**
+     * Meldung, wenn der erste Verbindungsversuch scheitert.
+     *
+     * @param host Anzeigename des Brokers
+     * @return Fehlertext für Notification und Snackbar
+     */
+    fun noConnectionPossible(host: String = ""): String {
+        val target = host.trim()
+        return if (target.isEmpty()) {
+            "Keine Verbindung möglich"
+        } else {
+            "Keine Verbindung möglich zu $target"
+        }
+    }
+
+    /**
      * Wählt einen kurzen Notification-Titel anhand der Fehlermeldung.
      *
      * @param message ausführliche Status- oder Fehlermeldung
@@ -95,6 +123,7 @@ object ConnectionStatusTexts {
     fun errorTitle(message: String): String {
         val lower = message.lowercase()
         return when {
+            lower.contains("keine verbindung") -> "Keine Verbindung möglich"
             lower.contains("nicht erreichbar") -> "Server nicht erreichbar"
             lower.contains("passwort") || lower.contains("benutzername") -> "Anmeldung fehlgeschlagen"
             lower.contains("zeitüberschreitung") -> "Zeitüberschreitung"
