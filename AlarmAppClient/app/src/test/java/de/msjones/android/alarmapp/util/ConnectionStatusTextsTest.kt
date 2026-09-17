@@ -1,5 +1,6 @@
 package de.msjones.android.alarmapp.util
 
+import de.msjones.android.alarmapp.data.ServerSettings
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -174,6 +175,55 @@ class ConnectionStatusTextsTest {
             "Anmeldung fehlgeschlagen",
             ConnectionStatusTexts.errorTitle("Verbindung host:1883 - Falscher Benutzername oder Passwort")
         )
+    }
+
+    /** Eine aktive Verbindung darf nicht durch eine andere Offline-Verbindung verdeckt werden. */
+    @Test
+    fun displaySummary_keepsActiveWhenOtherConnectionIsOffline() {
+        val active = ServerSettings(id = "a", host = "broker-a", isActive = true)
+        val idle = ServerSettings(id = "b", host = "broker-b", isActive = false)
+        val summary = ConnectionStatusTexts.displaySummary(
+            connections = listOf(active, idle),
+            runtimeStatuses = mapOf(
+                "a" to "SUBSCRIBED",
+                "b" to "OFFLINE"
+            )
+        )
+        assertEquals("1 von 2 Verbindungen aktiv", summary)
+        assertEquals(
+            ConnectionPhase.ACTIVE,
+            ConnectionStatusTexts.overallPhase(
+                ConnectionStatusTexts.phasesFor(
+                    listOf(active, idle),
+                    mapOf("a" to "SUBSCRIBED", "b" to "OFFLINE")
+                )
+            )
+        )
+    }
+
+    /** Ohne Laufzeitstatus gilt eine eingeschaltete Verbindung als Verbinden, nicht als Offline. */
+    @Test
+    fun displaySummary_enabledWithoutRuntimeStatusIsConnecting() {
+        val enabled = ServerSettings(id = "a", host = "broker-a", isActive = true)
+        assertEquals(
+            "Verbinden",
+            ConnectionStatusTexts.displaySummary(listOf(enabled), emptyMap())
+        )
+        assertEquals(
+            ConnectionPhase.CONNECTING,
+            ConnectionStatusTexts.overallPhase(
+                ConnectionStatusTexts.phasesFor(listOf(enabled), emptyMap())
+            )
+        )
+    }
+
+    /** Der Statuscode zur verdichteten Phase bleibt mit den MQTT-Ereignissen kompatibel. */
+    @Test
+    fun statusCode_matchesMqttEvents() {
+        assertEquals("OFFLINE", ConnectionStatusTexts.statusCode(ConnectionPhase.OFFLINE))
+        assertEquals("CONNECTING", ConnectionStatusTexts.statusCode(ConnectionPhase.CONNECTING))
+        assertEquals("SUBSCRIBED", ConnectionStatusTexts.statusCode(ConnectionPhase.ACTIVE))
+        assertEquals("RECONNECTING", ConnectionStatusTexts.statusCode(ConnectionPhase.RECONNECTING))
     }
 
     /** Unbekannte Fehler fallen auf den allgemeinen Titel zurück. */

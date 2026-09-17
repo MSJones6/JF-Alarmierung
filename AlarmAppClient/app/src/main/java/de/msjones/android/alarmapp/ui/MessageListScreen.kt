@@ -34,21 +34,21 @@ fun MessageListScreen(
 ) {
     val messages = viewModel.messages.collectAsState()
     val connectionStatus by viewModel.connectionStatus.collectAsState()
+    val userError by viewModel.userError.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val phase = ConnectionPhase.fromStatus(connectionStatus.status)
     val statusText = connectionStatus.message.ifBlank {
         ConnectionStatusTexts.phaseLabel(phase)
     }
-    
-    // Show error as snackbar when connection status is ERROR
-    LaunchedEffect(connectionStatus.status) {
-        if (connectionStatus.status.uppercase() == "ERROR" && connectionStatus.message.isNotEmpty()) {
+
+    LaunchedEffect(userError) {
+        val message = userError ?: return@LaunchedEffect
+        if (message.isNotEmpty()) {
             snackbarHostState.showSnackbar(
-                message = connectionStatus.message,
+                message = message,
                 duration = SnackbarDuration.Short
             )
-            // Clear error after showing
-            viewModel.clearConnectionStatus()
+            viewModel.clearUserError()
         }
     }
 
@@ -63,12 +63,7 @@ fun MessageListScreen(
                                 text = statusText,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = when (phase) {
-                                    ConnectionPhase.OFFLINE ->
-                                        if (connectionStatus.status.uppercase() == "ERROR") {
-                                            MaterialTheme.colorScheme.error
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                        }
+                                    ConnectionPhase.OFFLINE -> MaterialTheme.colorScheme.onSurfaceVariant
                                     ConnectionPhase.CONNECTING -> MaterialTheme.colorScheme.tertiary
                                     ConnectionPhase.RECONNECTING -> MaterialTheme.colorScheme.secondary
                                     ConnectionPhase.ACTIVE -> MaterialTheme.colorScheme.primary

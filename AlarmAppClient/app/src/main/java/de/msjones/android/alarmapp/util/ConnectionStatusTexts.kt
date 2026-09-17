@@ -1,9 +1,105 @@
 package de.msjones.android.alarmapp.util
 
+import de.msjones.android.alarmapp.data.ServerSettings
+
 /**
  * Texte für Verbindungsstatus in UI und Android-Benachrichtigungen.
  */
 object ConnectionStatusTexts {
+
+    /**
+     * Ermittelt die Phase jeder gespeicherten Verbindung.
+     *
+     * @param connections gespeicherte Verbindungen
+     * @param runtimeStatuses letzter Statuscode je Verbindungs-ID
+     * @return Phasen in derselben Reihenfolge wie [connections]
+     */
+    fun phasesFor(
+        connections: List<ServerSettings>,
+        runtimeStatuses: Map<String, String>
+    ): List<ConnectionPhase> {
+        return connections.map { connection ->
+            ConnectionPhase.fromRuntime(connection.isActive, runtimeStatuses[connection.id])
+        }
+    }
+
+    /**
+     * Liefert die Statuszeile über alle Verbindungen, inkl. einzelner Warteanzeige.
+     *
+     * @param connections gespeicherte Verbindungen
+     * @param runtimeStatuses letzter Statuscode je Verbindungs-ID
+     * @param runtimeMessages letzter Anzeigetext je Verbindungs-ID
+     * @return Text für Nachrichtenseite, Einstellungen und Notification
+     */
+    fun displaySummary(
+        connections: List<ServerSettings>,
+        runtimeStatuses: Map<String, String>,
+        runtimeMessages: Map<String, String> = emptyMap()
+    ): String {
+        val waitingMessages = connections.mapNotNull { connection ->
+            val phase = ConnectionPhase.fromRuntime(connection.isActive, runtimeStatuses[connection.id])
+            val message = runtimeMessages[connection.id]
+            if ((phase == ConnectionPhase.CONNECTING || phase == ConnectionPhase.RECONNECTING) &&
+                !message.isNullOrBlank()
+            ) {
+                message
+            } else {
+                null
+            }
+        }
+        return if (waitingMessages.size == 1) {
+            waitingMessages.first()
+        } else {
+            summary(phasesFor(connections, runtimeStatuses))
+        }
+    }
+
+    /**
+     * Verdichtet alle Phasen zu einer Anzeigefarbe bzw. einem Gesamtlage-Status.
+     *
+     * Eine aktive Verbindung hält das Gesamtergebnis auf Aktiv, auch wenn andere offline sind.
+     *
+     * @param phases Phasen aller gespeicherten Verbindungen
+     * @return übergeordnete Phase für die Nachrichtenseite
+     */
+    fun overallPhase(phases: Collection<ConnectionPhase>): ConnectionPhase {
+        val active = phases.count { it == ConnectionPhase.ACTIVE }
+        val connecting = phases.count { it == ConnectionPhase.CONNECTING }
+        val reconnecting = phases.count { it == ConnectionPhase.RECONNECTING }
+
+        if (active == 0 && connecting == 0 && reconnecting == 0) {
+            return ConnectionPhase.OFFLINE
+        }
+        if (connecting == 0 && reconnecting == 0) {
+            return ConnectionPhase.ACTIVE
+        }
+        if (active == 0 && reconnecting == 0) {
+            return ConnectionPhase.CONNECTING
+        }
+        if (active == 0 && connecting == 0) {
+            return ConnectionPhase.RECONNECTING
+        }
+        return if (active > 0) {
+            ConnectionPhase.ACTIVE
+        } else {
+            ConnectionPhase.RECONNECTING
+        }
+    }
+
+    /**
+     * Liefert den Statuscode zur übergeordneten Phase.
+     *
+     * @param phase verdichtete Phase
+     * @return Code analog zu den MQTT-Ereignissen
+     */
+    fun statusCode(phase: ConnectionPhase): String {
+        return when (phase) {
+            ConnectionPhase.OFFLINE -> "OFFLINE"
+            ConnectionPhase.CONNECTING -> "CONNECTING"
+            ConnectionPhase.ACTIVE -> "SUBSCRIBED"
+            ConnectionPhase.RECONNECTING -> "RECONNECTING"
+        }
+    }
 
     /**
      * Liefert die Kurzfassung über alle Verbindungsphasen.

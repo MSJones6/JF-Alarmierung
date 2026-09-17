@@ -136,19 +136,10 @@ class MessagingService : LifecycleService() {
 
                         rememberStatus(connectionId, status, message)
                         when (status.uppercase()) {
-                            "CONNECTING" -> settingsStore.setConnectionStatus(status, message)
-                            "RECONNECTING" -> settingsStore.setConnectionStatus(status, message)
-                            "CONNECTED" -> settingsStore.setConnected(message)
-                            "SUBSCRIBED" -> {
-                                settingsStore.setConnectionStatus(status, message)
+                            "SUBSCRIBED" -> helper.cancelStatusNotification(connectionId)
+                            "OFFLINE", "DISCONNECTED" ->
                                 helper.cancelStatusNotification(connectionId)
-                            }
-                            "OFFLINE", "DISCONNECTED" -> {
-                                settingsStore.setDisconnected(message)
-                                helper.cancelStatusNotification(connectionId)
-                            }
                             "ERROR" -> {
-                                settingsStore.setConnectionError(message)
                                 settingsStore.setConnectionEnabled(connectionId, false)
                                 MessagingEventBus.tryEmit(
                                     MessagingEvent.ConnectionState(status, message, connectionId)
@@ -157,7 +148,6 @@ class MessagingService : LifecycleService() {
                                 disconnectConnection(connectionId, emitDisconnected = false)
                                 return@launch
                             }
-                            else -> settingsStore.setConnectionStatus(status, message)
                         }
 
                         helper.updateServiceNotification(buildServiceStatusMessage())
@@ -194,6 +184,7 @@ class MessagingService : LifecycleService() {
             clientWrappers.clear()
         }
         running.set(false)
+        settingsStore.clearAllRuntimeStatuses()
         MessagingEventBus.tryEmit(MessagingEvent.ServiceRunningState(false))
         super.onDestroy()
     }
@@ -234,25 +225,11 @@ class MessagingService : LifecycleService() {
      */
     private fun buildServiceStatusMessage(): String {
         val connections = settingsStore.getConnectionsSnapshot()
-        val phases = connections.map { connection ->
-            ConnectionPhase.fromRuntime(connection.isActive, connectionStatuses[connection.id])
-        }
-        val waitingMessages = connections.mapNotNull { connection ->
-            val phase = ConnectionPhase.fromRuntime(connection.isActive, connectionStatuses[connection.id])
-            val message = connectionMessages[connection.id]
-            if ((phase == ConnectionPhase.CONNECTING || phase == ConnectionPhase.RECONNECTING) &&
-                !message.isNullOrBlank()
-            ) {
-                message
-            } else {
-                null
-            }
-        }
-        return if (waitingMessages.size == 1) {
-            waitingMessages.first()
-        } else {
-            ConnectionStatusTexts.summary(phases)
-        }
+        return ConnectionStatusTexts.displaySummary(
+            connections,
+            connectionStatuses,
+            connectionMessages
+        )
     }
 
     /**
@@ -269,6 +246,7 @@ class MessagingService : LifecycleService() {
         } else {
             connectionMessages.remove(connectionId)
         }
+        settingsStore.setRuntimeStatus(connectionId, status, message)
     }
 
     /**

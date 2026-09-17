@@ -69,11 +69,8 @@ class MainActivity : ComponentActivity() {
                         store.disableAllConnections()
                         store.clearConnectionStatus()
                     }
-                    is MessagingEvent.AuthError -> {
-                        store.setConnectionError(event.errorMessage)
-                    }
                     is MessagingEvent.ConnectionState -> {
-                        persistConnectionState(event.status, event.message)
+                        persistConnectionState(event.connectionId, event.status, event.message)
                     }
                     else -> Unit
                 }
@@ -86,6 +83,8 @@ class MainActivity : ComponentActivity() {
                 val msgViewModel: MessageViewModel = viewModel()
 
                 val connections by store.flow.collectAsState(initial = emptyList())
+                val runtimeStatuses by store.runtimeStatuses.collectAsState()
+                val runtimeMessages by store.runtimeMessages.collectAsState()
 
                 NavHost(navController = navController, startDestination = "messages") {
                     composable("messages") {
@@ -99,6 +98,8 @@ class MainActivity : ComponentActivity() {
                     composable("settings") {
                         SettingsScreen(
                             connections = connections,
+                            runtimeStatuses = runtimeStatuses,
+                            runtimeMessages = runtimeMessages,
                             onSaveConnection = { settings ->
                                 lifecycleScope.launch {
                                     store.saveConnection(settings)
@@ -140,16 +141,17 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Speichert den Verbindungsstatus dauerhaft im SettingsStore.
+     * Übernimmt den Laufzeitstatus einer einzelnen Verbindung in den gemeinsamen Store.
+     *
+     * @param connectionId Kennung der Verbindung
+     * @param status Statuscode
+     * @param stateMessage Anzeigetext
      */
-    private suspend fun persistConnectionState(status: String, stateMessage: String) {
-        if (status.isEmpty() || stateMessage.isEmpty()) return
-        when (status.uppercase()) {
-            "CONNECTED" -> store.setConnected(stateMessage)
-            "DISCONNECTED" -> store.setDisconnected(stateMessage)
-            "ERROR" -> store.setConnectionError(stateMessage)
-            else -> store.setConnectionStatus(status, stateMessage)
+    private fun persistConnectionState(connectionId: String, status: String, stateMessage: String) {
+        if (connectionId.isBlank() || status.isEmpty()) {
+            return
         }
+        store.setRuntimeStatus(connectionId, status, stateMessage)
     }
 
     /**

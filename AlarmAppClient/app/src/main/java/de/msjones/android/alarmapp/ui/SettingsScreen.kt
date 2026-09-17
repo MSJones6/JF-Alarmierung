@@ -69,11 +69,21 @@ sealed class SettingsScreenState {
 
 /**
  * Bildschirm zur Verwaltung von MQTT-Verbindungen und deren einzelnem Aktiv-Status.
+ *
+ * @param connections gespeicherte Verbindungen
+ * @param runtimeStatuses aktueller MQTT-Status je Verbindungs-ID
+ * @param runtimeMessages ausführlicher Statustext je Verbindungs-ID
+ * @param onSaveConnection speichert eine neue oder geänderte Verbindung
+ * @param onDeleteConnection löscht eine Verbindung
+ * @param onToggleConnection schaltet eine Verbindung ein oder aus
+ * @param onConnectionFailed deaktiviert eine Verbindung nach einem Fehler
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     connections: List<ServerSettings>,
+    runtimeStatuses: Map<String, String>,
+    runtimeMessages: Map<String, String>,
     onSaveConnection: (ServerSettings) -> Unit,
     onDeleteConnection: (String) -> Unit,
     onToggleConnection: (ServerSettings, Boolean) -> Unit,
@@ -81,8 +91,6 @@ fun SettingsScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     var statusErrorMessage by remember { mutableStateOf<String?>(null) }
-    var runtimeStatuses by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    var runtimeMessages by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var screenState by remember { mutableStateOf<SettingsScreenState>(SettingsScreenState.List) }
     var scannedConnectionFromQr by remember { mutableStateOf<ServerSettings?>(null) }
 
@@ -92,30 +100,16 @@ fun SettingsScreen(
                 is MessagingEvent.AuthError -> {
                     statusErrorMessage = event.errorMessage
                     if (event.connectionId.isNotBlank()) {
-                        runtimeStatuses = runtimeStatuses + (event.connectionId to "ERROR")
-                        runtimeMessages = runtimeMessages - event.connectionId
                         onConnectionFailed(event.connectionId)
                     }
                 }
                 is MessagingEvent.StopAllConnections -> {
-                    runtimeStatuses = emptyMap()
-                    runtimeMessages = emptyMap()
                     screenState = SettingsScreenState.List
                 }
-                is MessagingEvent.ServiceRunningState -> {
-                    if (!event.isRunning) {
-                        runtimeStatuses = emptyMap()
-                        runtimeMessages = emptyMap()
-                    }
-                }
                 is MessagingEvent.ConnectionState -> {
-                    if (event.connectionId.isNotBlank()) {
-                        runtimeStatuses = runtimeStatuses + (event.connectionId to event.status)
-                        runtimeMessages = runtimeMessages + (event.connectionId to event.message)
-                        if (event.status.uppercase() == "ERROR") {
-                            statusErrorMessage = event.message
-                            onConnectionFailed(event.connectionId)
-                        }
+                    if (event.status.uppercase() == "ERROR") {
+                        statusErrorMessage = event.message
+                        onConnectionFailed(event.connectionId)
                     }
                 }
                 else -> Unit
@@ -218,26 +212,14 @@ private fun SettingsListContent(
     onDeleteConnection: (String) -> Unit,
     onToggleConnection: (ServerSettings, Boolean) -> Unit
 ) {
-    val phases = connections.map { connection ->
-        ConnectionPhase.fromRuntime(connection.isActive, runtimeStatuses[connection.id])
-    }
-    val waitingMessages = connections.mapNotNull { connection ->
-        val phase = ConnectionPhase.fromRuntime(connection.isActive, runtimeStatuses[connection.id])
-        val message = runtimeMessages[connection.id]
-        if ((phase == ConnectionPhase.CONNECTING || phase == ConnectionPhase.RECONNECTING) &&
-            !message.isNullOrBlank()
-        ) {
-            message
-        } else {
-            null
-        }
-    }
-    val summary = if (waitingMessages.size == 1) {
-        waitingMessages.first()
-    } else {
-        ConnectionStatusTexts.summary(phases)
-    }
-    val hasLiveConnection = phases.any { it != ConnectionPhase.OFFLINE }
+    val summary = ConnectionStatusTexts.displaySummary(
+        connections,
+        runtimeStatuses,
+        runtimeMessages
+    )
+    val hasLiveConnection = ConnectionStatusTexts.overallPhase(
+        ConnectionStatusTexts.phasesFor(connections, runtimeStatuses)
+    ) != ConnectionPhase.OFFLINE
 
     Scaffold(
         topBar = {
