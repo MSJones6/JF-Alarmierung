@@ -4,22 +4,120 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Unit-Tests für [ConnectionStatusTexts].
+ * Unit-Tests für [ConnectionStatusTexts] und [ConnectionPhase].
  */
 class ConnectionStatusTextsTest {
 
-    /** Aktive und gespeicherte Verbindungen werden als Verhältnis ausgegeben. */
+    /** Alle aktiven Verbindungen ergeben das bisherige Verhältnis. */
     @Test
-    fun summary_formatsEnabledOfTotal() {
-        assertEquals("1 von 2 Verbindungen aktiv", ConnectionStatusTexts.summary(1, 2))
-        assertEquals("2 von 2 Verbindungen aktiv", ConnectionStatusTexts.summary(2, 2))
+    fun summary_formatsActiveOfTotal() {
+        val phases = listOf(ConnectionPhase.ACTIVE, ConnectionPhase.OFFLINE)
+        assertEquals("1 von 2 Verbindungen aktiv", ConnectionStatusTexts.summary(phases))
+        assertEquals(
+            "2 von 2 Verbindungen aktiv",
+            ConnectionStatusTexts.summary(listOf(ConnectionPhase.ACTIVE, ConnectionPhase.ACTIVE))
+        )
     }
 
-    /** Ohne aktive Verbindung erscheint der Leer-Hinweis. */
+    /** Ohne laufende Verbindung erscheint Offline. */
     @Test
-    fun summary_withoutEnabledConnections() {
-        assertEquals("Keine Verbindung aktiv", ConnectionStatusTexts.summary(0, 2))
-        assertEquals("Keine Verbindung aktiv", ConnectionStatusTexts.summary(1, 0))
+    fun summary_withoutLiveConnections() {
+        assertEquals("Offline", ConnectionStatusTexts.summary(emptyList()))
+        assertEquals(
+            "Offline",
+            ConnectionStatusTexts.summary(listOf(ConnectionPhase.OFFLINE, ConnectionPhase.OFFLINE))
+        )
+    }
+
+    /** Der erste Verbindungsaufbau wird als Verbinden dargestellt. */
+    @Test
+    fun summary_connecting() {
+        assertEquals(
+            "Verbinden",
+            ConnectionStatusTexts.summary(listOf(ConnectionPhase.CONNECTING))
+        )
+        assertEquals(
+            "2 von 2 Verbindungen verbinden",
+            ConnectionStatusTexts.summary(listOf(ConnectionPhase.CONNECTING, ConnectionPhase.CONNECTING))
+        )
+    }
+
+    /** Ein Verbindungsabbruch nach Erfolg wird als Reconnect dargestellt. */
+    @Test
+    fun summary_reconnecting() {
+        assertEquals(
+            "Reconnect",
+            ConnectionStatusTexts.summary(listOf(ConnectionPhase.RECONNECTING))
+        )
+        assertEquals(
+            "1 aktiv, 1 Reconnect",
+            ConnectionStatusTexts.summary(listOf(ConnectionPhase.ACTIVE, ConnectionPhase.RECONNECTING))
+        )
+    }
+
+    /** Gemischte Phasen werden aufgezählt. */
+    @Test
+    fun summary_mixedPhases() {
+        assertEquals(
+            "1 aktiv, 1 Verbinden",
+            ConnectionStatusTexts.summary(listOf(ConnectionPhase.ACTIVE, ConnectionPhase.CONNECTING))
+        )
+    }
+
+    /** Phasenlabels sind kurz und fest. */
+    @Test
+    fun phaseLabel_returnsFixedNames() {
+        assertEquals("Offline", ConnectionStatusTexts.phaseLabel(ConnectionPhase.OFFLINE))
+        assertEquals("Verbinden", ConnectionStatusTexts.phaseLabel(ConnectionPhase.CONNECTING))
+        assertEquals("Aktiv", ConnectionStatusTexts.phaseLabel(ConnectionPhase.ACTIVE))
+        assertEquals("Reconnect", ConnectionStatusTexts.phaseLabel(ConnectionPhase.RECONNECTING))
+    }
+
+    /** Phasenmeldungen enthalten den Host, wenn vorhanden. */
+    @Test
+    fun phaseMessage_includesHost() {
+        assertEquals("Offline", ConnectionStatusTexts.phaseMessage(ConnectionPhase.OFFLINE, "x"))
+        assertEquals(
+            "Verbinden mit mqtt.local:1883",
+            ConnectionStatusTexts.phaseMessage(ConnectionPhase.CONNECTING, "mqtt.local:1883")
+        )
+        assertEquals(
+            "Aktiv: mqtt.local:1883",
+            ConnectionStatusTexts.phaseMessage(ConnectionPhase.ACTIVE, "mqtt.local:1883")
+        )
+        assertEquals(
+            "Reconnect zu mqtt.local:1883",
+            ConnectionStatusTexts.phaseMessage(ConnectionPhase.RECONNECTING, "mqtt.local:1883")
+        )
+    }
+
+    /** Ausgeschaltete Verbindungen gelten als Offline. */
+    @Test
+    fun fromRuntime_disabledIsOffline() {
+        assertEquals(
+            ConnectionPhase.OFFLINE,
+            ConnectionPhase.fromRuntime(isEnabled = false, status = "SUBSCRIBED")
+        )
+    }
+
+    /** Eingeschaltete Verbindungen ohne Status gelten als Verbinden. */
+    @Test
+    fun fromRuntime_enabledWithoutStatusIsConnecting() {
+        assertEquals(
+            ConnectionPhase.CONNECTING,
+            ConnectionPhase.fromRuntime(isEnabled = true, status = null)
+        )
+    }
+
+    /** Statuscodes werden den vier Phasen zugeordnet. */
+    @Test
+    fun fromStatus_mapsKnownCodes() {
+        assertEquals(ConnectionPhase.CONNECTING, ConnectionPhase.fromStatus("CONNECTING"))
+        assertEquals(ConnectionPhase.RECONNECTING, ConnectionPhase.fromStatus("RECONNECTING"))
+        assertEquals(ConnectionPhase.ACTIVE, ConnectionPhase.fromStatus("SUBSCRIBED"))
+        assertEquals(ConnectionPhase.CONNECTING, ConnectionPhase.fromStatus("CONNECTED"))
+        assertEquals(ConnectionPhase.OFFLINE, ConnectionPhase.fromStatus("OFFLINE"))
+        assertEquals(ConnectionPhase.OFFLINE, ConnectionPhase.fromStatus("ERROR"))
     }
 
     /** Erreichbarkeitsfehler erhalten einen kurzen Notification-Titel. */

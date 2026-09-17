@@ -8,6 +8,7 @@ import de.msjones.android.alarmapp.data.AlarmMessageParser
 import de.msjones.android.alarmapp.data.SettingsStore
 import de.msjones.android.alarmapp.event.MessagingEvent
 import de.msjones.android.alarmapp.event.MessagingEventBus
+import de.msjones.android.alarmapp.util.ConnectionPhase
 import de.msjones.android.alarmapp.util.ConnectionStatusTexts
 import de.msjones.android.alarmapp.util.NotificationHelper
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +26,7 @@ class MessagingService : LifecycleService() {
     private lateinit var settingsStore: SettingsStore
     private val clientWrappers = ConcurrentHashMap<String, MqttClientWrapper>()
     private val connectionJobs = ConcurrentHashMap<String, Job>()
+    private val connectionStatuses = ConcurrentHashMap<String, String>()
 
     companion object {
         const val EXTRA_HOST = "host"
@@ -76,6 +78,18 @@ class MessagingService : LifecycleService() {
         val ssl = intent?.getBooleanExtra(EXTRA_SSL, false) ?: false
 
         connectionJobs.remove(connectionId)?.cancel()
+        rememberStatus(connectionId, "CONNECTING")
+        helper.updateServiceNotification(buildServiceStatusMessage())
+        MessagingEventBus.tryEmit(
+            MessagingEvent.ConnectionState(
+                "CONNECTING",
+                ConnectionStatusTexts.phaseMessage(
+                    ConnectionPhase.CONNECTING,
+                    if (host.isNullOrBlank()) "" else "$host:$port"
+                ),
+                connectionId
+            )
+        )
         connectionJobs[connectionId] = lifecycleScope.launch(Dispatchers.IO) {
             if (host.isNullOrBlank()) {
                 helper.updateServiceNotification("Bitte Serverdaten speichern.")
@@ -109,25 +123,40 @@ class MessagingService : LifecycleService() {
                             "INFO" to state
                         }
 
+                        rememberStatus(connectionId, status)
                         when (status.uppercase()) {
-                            "CONNECTED" -> {
-                                settingsStore.setConnected(message)
-                                helper.cancelStatusNotification(connectionId)
+                            "CONNECTING" -> {
+                                settingsStore.setConnectionStatus(status, message)
+                                publishPhaseNotification(
+                                    connectionId,
+                                    ConnectionPhase.CONNECTING,
+                                    message
+                                )
                             }
+                            "RECONNECTING" -> {
+                                settingsStore.setConnectionStatus(status, message)
+                                publishPhaseNotification(
+                                    connectionId,
+                                    ConnectionPhase.RECONNECTING,
+                                    message
+                                )
+                            }
+                            "CONNECTED" -> settingsStore.setConnected(message)
                             "SUBSCRIBED" -> {
                                 settingsStore.setConnectionStatus(status, message)
                                 helper.cancelStatusNotification(connectionId)
                             }
-                            "DISCONNECTED" -> settingsStore.setDisconnected(message)
+                            "OFFLINE", "DISCONNECTED" -> {
+                                settingsStore.setDisconnected(message)
+                                helper.cancelStatusNotification(connectionId)
+                            }
                             "ERROR" -> {
                                 settingsStore.setConnectionError(message)
-                                settingsStore.setConnectionEnabled(connectionId, false)
                                 helper.showStatusNotification(
                                     connectionId,
                                     ConnectionStatusTexts.errorTitle(message),
                                     message
                                 )
-                                disconnectConnection(connectionId, emitDisconnected = false)
                             }
                             else -> settingsStore.setConnectionStatus(status, message)
                         }
@@ -142,6 +171,7 @@ class MessagingService : LifecycleService() {
                     lifecycleScope.launch(Dispatchers.Main) {
                         val detailedError = "Verbindung $host:$port - $errorMessage"
                         settingsStore.setConnectionEnabled(connectionId, false)
+                        rememberStatus(connectionId, "ERROR")
                         helper.showStatusNotification(
                             connectionId,
                             ConnectionStatusTexts.errorTitle(detailedError),
@@ -186,11 +216,13 @@ class MessagingService : LifecycleService() {
      */
     private fun disconnectConnection(connectionId: String, emitDisconnected: Boolean) {
         connectionJobs.remove(connectionId)?.cancel()
+        rememberStatus(connectionId, "OFFLINE")
+        helper.cancelStatusNotification(connectionId)
         lifecycleScope.launch(Dispatchers.IO) {
             clientWrappers.remove(connectionId)?.disconnectAndWait(emitState = false)
             if (emitDisconnected) {
                 MessagingEventBus.tryEmit(
-                    MessagingEvent.ConnectionState("DISCONNECTED", "Getrennt", connectionId)
+                    MessagingEvent.ConnectionState("OFFLINE", "Offline", connectionId)
                 )
             }
             if (clientWrappers.isEmpty()) {
@@ -202,16 +234,46 @@ class MessagingService : LifecycleService() {
     }
 
     /**
-     * Baut den Notification-Text anhand der aktivierten und gespeicherten Verbindungen.
+     * Baut den Notification-Text anhand der Phasen aller gespeicherten Verbindungen.
      *
      * @return Statuszeile für die Vordergrund-Benachrichtigung
      */
     private fun buildServiceStatusMessage(): String {
         val connections = settingsStore.getConnectionsSnapshot()
-        return ConnectionStatusTexts.summary(
-            enabledCount = connections.count { it.isActive },
-            totalCount = connections.size
-        )
+        val phases = connections.map { connection ->
+            ConnectionPhase.fromRuntime(connection.isActive, connectionStatuses[connection.id])
+        }
+        return ConnectionStatusTexts.summary(phases)
+    }
+
+    /**
+     * Merkt sich den letzten MQTT-Statuscode einer Verbindung.
+     *
+     * @param connectionId Kennung der Verbindung
+     * @param status Statuscode
+     */
+    private fun rememberStatus(connectionId: String, status: String) {
+        connectionStatuses[connectionId] = status
+    }
+
+    /**
+     * Zeigt eine Status-Notification für Verbinden oder Reconnect.
+     *
+     * @param connectionId Kennung der Verbindung
+     * @param phase aktuelle Phase
+     * @param message ausführlicher Statustext
+     */
+    private fun publishPhaseNotification(
+        connectionId: String,
+        phase: ConnectionPhase,
+        message: String
+    ) {
+        val title = if (message.contains("nicht erreichbar", ignoreCase = true)) {
+            ConnectionStatusTexts.errorTitle(message)
+        } else {
+            ConnectionStatusTexts.phaseLabel(phase)
+        }
+        helper.showStatusNotification(connectionId, title, message)
     }
 
     /**

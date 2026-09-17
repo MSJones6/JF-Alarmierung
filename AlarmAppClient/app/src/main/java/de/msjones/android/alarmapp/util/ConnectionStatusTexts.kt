@@ -6,17 +6,83 @@ package de.msjones.android.alarmapp.util
 object ConnectionStatusTexts {
 
     /**
-     * Liefert die Kurzfassung, wie viele Verbindungen gerade aktiv sind.
+     * Liefert die Kurzfassung über alle Verbindungsphasen.
      *
-     * @param enabledCount Anzahl der vom Nutzer aktivierten Verbindungen
-     * @param totalCount Anzahl aller gespeicherten Verbindungen
+     * @param phases aktuelle Phase je gespeicherter Verbindung
      * @return Statuszeile für Notification und Einstellungen
      */
-    fun summary(enabledCount: Int, totalCount: Int): String {
-        return if (enabledCount <= 0 || totalCount <= 0) {
-            "Keine Verbindung aktiv"
-        } else {
-            "$enabledCount von $totalCount Verbindungen aktiv"
+    fun summary(phases: Collection<ConnectionPhase>): String {
+        val total = phases.size
+        val active = phases.count { it == ConnectionPhase.ACTIVE }
+        val connecting = phases.count { it == ConnectionPhase.CONNECTING }
+        val reconnecting = phases.count { it == ConnectionPhase.RECONNECTING }
+
+        if (total == 0 || (active == 0 && connecting == 0 && reconnecting == 0)) {
+            return "Offline"
+        }
+        if (connecting == 0 && reconnecting == 0) {
+            return "$active von $total Verbindungen aktiv"
+        }
+        if (active == 0 && reconnecting == 0) {
+            return if (connecting == 1 && total == 1) {
+                "Verbinden"
+            } else {
+                "$connecting von $total Verbindungen verbinden"
+            }
+        }
+        if (active == 0 && connecting == 0) {
+            return if (reconnecting == 1 && total == 1) {
+                "Reconnect"
+            } else {
+                "$reconnecting von $total Verbindungen Reconnect"
+            }
+        }
+
+        val parts = mutableListOf<String>()
+        if (active > 0) {
+            parts += "$active aktiv"
+        }
+        if (connecting > 0) {
+            parts += "$connecting Verbinden"
+        }
+        if (reconnecting > 0) {
+            parts += "$reconnecting Reconnect"
+        }
+        return parts.joinToString(", ")
+    }
+
+    /**
+     * Kurzes Phasenlabel ohne Host.
+     *
+     * @param phase aktuelle Verbindungsphase
+     * @return Offline, Verbinden, Aktiv oder Reconnect
+     */
+    fun phaseLabel(phase: ConnectionPhase): String {
+        return when (phase) {
+            ConnectionPhase.OFFLINE -> "Offline"
+            ConnectionPhase.CONNECTING -> "Verbinden"
+            ConnectionPhase.ACTIVE -> "Aktiv"
+            ConnectionPhase.RECONNECTING -> "Reconnect"
+        }
+    }
+
+    /**
+     * Ausführliche Phasenmeldung, optional mit Host.
+     *
+     * @param phase aktuelle Verbindungsphase
+     * @param host Anzeigename des Brokers
+     * @return Text für Notification und Statuszeile
+     */
+    fun phaseMessage(phase: ConnectionPhase, host: String = ""): String {
+        val target = host.trim()
+        return when (phase) {
+            ConnectionPhase.OFFLINE -> "Offline"
+            ConnectionPhase.CONNECTING ->
+                if (target.isEmpty()) "Verbinden" else "Verbinden mit $target"
+            ConnectionPhase.ACTIVE ->
+                if (target.isEmpty()) "Aktiv" else "Aktiv: $target"
+            ConnectionPhase.RECONNECTING ->
+                if (target.isEmpty()) "Reconnect" else "Reconnect zu $target"
         }
     }
 

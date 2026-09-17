@@ -4,15 +4,22 @@ import android.content.Context
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.hivemq.client.mqtt.MqttClient
+import com.hivemq.client.mqtt.lifecycle.MqttDisconnectSource
 import com.hivemq.client.mqtt.mqtt3.Mqtt3AsyncClient
 import com.hivemq.client.mqtt.mqtt3.message.connect.connack.Mqtt3ConnAck
 import com.hivemq.client.mqtt.mqtt3.message.publish.Mqtt3Publish
+import de.msjones.android.alarmapp.util.ConnectionPhase
+import de.msjones.android.alarmapp.util.ConnectionStatusTexts
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.future.await
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.coroutineContext
 
 /**
  * Kapselt eine MQTT-3-Verbindung inkl. Subscribe, Auto-Reconnect und Status-Callbacks.
@@ -32,103 +39,124 @@ class MqttClientWrapper(
 
     private var client: Mqtt3AsyncClient? = null
     private val isConnected = AtomicBoolean(false)
+    private val stopped = AtomicBoolean(false)
+    private val hasBeenConnected = AtomicBoolean(false)
+    private val displayHost = serverUri.substringAfter("://")
 
     /**
      * Stellt die MQTT-Verbindung her und abonniert das konfigurierte Topic.
+     * Schlägt der erste Versuch fehl, bleibt der Zustand „Verbinden“ und es wird erneut versucht.
      */
     suspend fun connect() {
-        try {
-            val protocol = if (serverUri.startsWith("ssl://")) "ssl" else "tcp"
-            val host = serverUri.substringAfter("${protocol}://").substringBefore(":")
-            val port = serverUri.substringAfterLast(":").toInt()
+        stopped.set(false)
+        hasBeenConnected.set(false)
+        emitPhase(ConnectionPhase.CONNECTING)
+        createClient()
 
-            val builder = MqttClient.builder()
-                .useMqttVersion3()
-                .identifier(clientId)
-                .serverHost(host)
-                .serverPort(port)
-                .automaticReconnectWithDefaultConfig()
-                .transportConfig()
-                .mqttConnectTimeout(15, TimeUnit.SECONDS)
-                .socketConnectTimeout(10, TimeUnit.SECONDS)
-                .applyTransportConfig()
-
-            if (protocol == "ssl") {
-                builder.sslWithDefaultConfig()
-            }
-
-            client = builder.buildAsync()
-
-            val connAck: Mqtt3ConnAck = withTimeout(20_000) {
-                client?.connectWith()
-                    ?.simpleAuth()
-                    ?.username(user)
-                    ?.password(pass.toByteArray())
-                    ?.applySimpleAuth()
-                    ?.keepAlive(45)
-                    ?.send()
-                    ?.await() ?: throw Exception("Verbindung fehlgeschlagen")
-            }
-
-            // Check connection result
-            if (connAck.returnCode.isError) {
-                val errorMessage = "Verbindung abgelehnt: ${connAck.returnCode}"
-                
-                // Check if it's an auth error based on return code
-                val returnCode = connAck.returnCode.toString().lowercase()
-                val isAuthError = returnCode.contains("bad") || 
-                                  returnCode.contains("auth") ||
-                                  returnCode.contains("not authorized") ||
-                                  returnCode.contains("identifier") ||
-                                  returnCode.contains("credential")
-                
-                if (isAuthError) {
-                    onAuthError?.invoke("Falscher Benutzername oder Passwort")
-                } else {
-                    onState("ERROR:Verbindungsfehler: $errorMessage")
+        var delayMs = INITIAL_RETRY_DELAY_MS
+        while (!stopped.get() && coroutineContext.isActive) {
+            try {
+                if (attemptConnect()) {
+                    return
                 }
-                isConnected.set(false)
-                return
-            }
-
-            isConnected.set(true)
-            onState("CONNECTED:Verbunden mit $serverUri")
-
-            subscribe(topic)
-
-        } catch (e: Exception) {
-            val message = e.message ?: "Unbekannter Fehler"
-            
-            // Detect if this is an UnknownHostException
-            val isUnknownHost = e.javaClass.name.contains("UnknownHostException") ||
-                                message.lowercase().contains("unknown host") ||
-                                message.lowercase().contains("no address associated")
-            
-            // Nur echte Auth-Fehler – „connection refused“ ist ein Netz-/Broker-Problem.
-            val msgLower = message.lowercase()
-            val isAuthError = msgLower.contains("not authorized") ||
-                              msgLower.contains("authentication failed") ||
-                              msgLower.contains("bad username") ||
-                              msgLower.contains("bad user name") ||
-                              msgLower.contains("bad user") ||
-                              msgLower.contains("identifier rejected") ||
-                              msgLower.contains("bad credentials") ||
-                              msgLower.contains("not_authorized")
-
-            when {
-                isUnknownHost ->
-                    onState("ERROR:Verbindungsfehler: Server '$serverUri' nicht erreichbar (UnknownHost)")
-                msgLower.contains("connection refused") || msgLower.contains("connectexception") ->
-                    onState("ERROR:Verbindung abgelehnt – Broker unter $serverUri nicht erreichbar")
-                msgLower.contains("timeout") || e is kotlinx.coroutines.TimeoutCancellationException ->
-                    onState("ERROR:Zeitüberschreitung beim Verbinden mit $serverUri")
-                isAuthError ->
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (stopped.get()) {
+                    return
+                }
+                if (isAuthFailure(e.message)) {
                     onAuthError?.invoke("Falscher Benutzername oder Passwort")
-                else ->
-                    onState("ERROR:Fehler beim Verbinden: $message")
+                    return
+                }
+                emitConnectingWithHint(e)
             }
-            isConnected.set(false)
+            delay(delayMs)
+            delayMs = (delayMs * 2).coerceAtMost(MAX_RETRY_DELAY_MS)
         }
+    }
+
+    /**
+     * Baut den MQTT-Client inkl. Connect- und Disconnect-Listener.
+     */
+    private fun createClient() {
+        val protocol = if (serverUri.startsWith("ssl://")) "ssl" else "tcp"
+        val host = serverUri.substringAfter("${protocol}://").substringBefore(":")
+        val port = serverUri.substringAfterLast(":").toInt()
+
+        val builder = MqttClient.builder()
+            .useMqttVersion3()
+            .identifier(clientId)
+            .serverHost(host)
+            .serverPort(port)
+            .automaticReconnectWithDefaultConfig()
+            .addConnectedListener { _ ->
+                if (stopped.get()) {
+                    return@addConnectedListener
+                }
+                isConnected.set(true)
+                hasBeenConnected.set(true)
+                lifecycleOwner.lifecycleScope.launch {
+                    subscribe(topic)
+                }
+            }
+            .addDisconnectedListener { disconnectContext ->
+                isConnected.set(false)
+                if (stopped.get() || disconnectContext.source == MqttDisconnectSource.USER) {
+                    return@addDisconnectedListener
+                }
+                if (isAuthFailure(disconnectContext.cause.message)) {
+                    disconnectContext.reconnector.reconnect(false)
+                    onAuthError?.invoke("Falscher Benutzername oder Passwort")
+                    return@addDisconnectedListener
+                }
+                val phase = if (hasBeenConnected.get()) {
+                    ConnectionPhase.RECONNECTING
+                } else {
+                    ConnectionPhase.CONNECTING
+                }
+                emitPhase(phase)
+            }
+            .transportConfig()
+            .mqttConnectTimeout(15, TimeUnit.SECONDS)
+            .socketConnectTimeout(10, TimeUnit.SECONDS)
+            .applyTransportConfig()
+
+        if (protocol == "ssl") {
+            builder.sslWithDefaultConfig()
+        }
+
+        client = builder.buildAsync()
+    }
+
+    /**
+     * Führt einen einzelnen Connect-Versuch aus.
+     *
+     * @return true bei erfolgreichem ConnAck, sonst false
+     */
+    private suspend fun attemptConnect(): Boolean {
+        val connAck: Mqtt3ConnAck = withTimeout(20_000) {
+            client?.connectWith()
+                ?.simpleAuth()
+                ?.username(user)
+                ?.password(pass.toByteArray())
+                ?.applySimpleAuth()
+                ?.keepAlive(45)
+                ?.send()
+                ?.await() ?: throw Exception("Verbindung fehlgeschlagen")
+        }
+
+        if (connAck.returnCode.isError) {
+            val errorMessage = "Verbindung abgelehnt: ${connAck.returnCode}"
+            if (isAuthFailure(connAck.returnCode.toString()) || isAuthFailure(errorMessage)) {
+                onAuthError?.invoke("Falscher Benutzername oder Passwort")
+                stopped.set(true)
+                return false
+            }
+            emitConnectingWithHint(Exception(errorMessage))
+            return false
+        }
+        return true
     }
 
     /**
@@ -137,6 +165,9 @@ class MqttClientWrapper(
      * @param topic MQTT-Topic-Filter
      */
     private suspend fun subscribe(topic: String) {
+        if (stopped.get()) {
+            return
+        }
         try {
             client?.subscribeWith()
                 ?.topicFilter(topic)
@@ -158,31 +189,113 @@ class MqttClientWrapper(
                 }
                 ?.send()
                 ?.await()
-            onState("SUBSCRIBED:Abonniert: $topic")
-        } catch (e: Exception) {
-            onState("ERROR:Fehler beim Abonnieren: ${e.message}")
+            emitPhase(ConnectionPhase.ACTIVE)
+        } catch (_: Exception) {
+            if (stopped.get()) {
+                return
+            }
+            val phase = if (hasBeenConnected.get()) {
+                ConnectionPhase.RECONNECTING
+            } else {
+                ConnectionPhase.CONNECTING
+            }
+            emitPhase(phase)
         }
     }
 
     /**
-     * Trennt die Verbindung und wartet auf den Abschluss.
+     * Verhindert Reconnect-Meldungen und trennt die Verbindung.
      *
      * @param emitState ob Statusänderungen an [onState] gemeldet werden sollen
      */
     suspend fun disconnectAndWait(emitState: Boolean = true) {
+        stopped.set(true)
         try {
             client?.disconnect()?.await()
             isConnected.set(false)
             if (emitState) {
-                onState("DISCONNECTED:Getrennt")
+                emitPhase(ConnectionPhase.OFFLINE)
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             if (emitState) {
-                onState("ERROR:Fehler beim Trennen: ${e.message}")
+                emitPhase(ConnectionPhase.OFFLINE)
             }
         }
     }
 
     /** Gibt an, ob der Client aktuell verbunden ist. */
     fun isConnected(): Boolean = isConnected.get()
+
+    /**
+     * Meldet eine Phase inkl. lesbarem Text an [onState].
+     *
+     * @param phase neue Verbindungsphase
+     */
+    private fun emitPhase(phase: ConnectionPhase) {
+        val status = when (phase) {
+            ConnectionPhase.OFFLINE -> "OFFLINE"
+            ConnectionPhase.CONNECTING -> "CONNECTING"
+            ConnectionPhase.ACTIVE -> "SUBSCRIBED"
+            ConnectionPhase.RECONNECTING -> "RECONNECTING"
+        }
+        onState("$status:${ConnectionStatusTexts.phaseMessage(phase, displayHost)}")
+    }
+
+    /**
+     * Meldet „Verbinden“ mit einem kurzen Fehlerhinweis.
+     *
+     * @param error aufgetretener Verbindungsfehler
+     */
+    private fun emitConnectingWithHint(error: Exception) {
+        val hint = connectingHint(error)
+        val base = ConnectionStatusTexts.phaseMessage(ConnectionPhase.CONNECTING, displayHost)
+        onState("CONNECTING:$base – $hint")
+    }
+
+    /**
+     * Kürzt einen Verbindungsfehler auf einen Notification-Hinweis.
+     *
+     * @param error aufgetretener Fehler
+     * @return kurzer Hinweistext
+     */
+    private fun connectingHint(error: Exception): String {
+        val message = error.message ?: "Unbekannter Fehler"
+        val msgLower = message.lowercase()
+        val isUnknownHost = error.javaClass.name.contains("UnknownHostException") ||
+            msgLower.contains("unknown host") ||
+            msgLower.contains("no address associated")
+        return when {
+            isUnknownHost -> "nicht erreichbar"
+            msgLower.contains("connection refused") || msgLower.contains("connectexception") ->
+                "nicht erreichbar"
+            msgLower.contains("timeout") || error is kotlinx.coroutines.TimeoutCancellationException ->
+                "Zeitüberschreitung"
+            else -> message
+        }
+    }
+
+    /**
+     * Prüft, ob eine Meldung auf einen Authentifizierungsfehler hindeutet.
+     *
+     * @param message Fehlertext oder null
+     * @return true bei Auth-Fehler
+     */
+    private fun isAuthFailure(message: String?): Boolean {
+        val msgLower = message.orEmpty().lowercase()
+        return msgLower.contains("not authorized") ||
+            msgLower.contains("authentication failed") ||
+            msgLower.contains("bad username") ||
+            msgLower.contains("bad user name") ||
+            msgLower.contains("bad user") ||
+            msgLower.contains("identifier rejected") ||
+            msgLower.contains("bad credentials") ||
+            msgLower.contains("not_authorized") ||
+            msgLower.contains("bad_user") ||
+            (msgLower.contains("bad") && msgLower.contains("auth"))
+    }
+
+    companion object {
+        private const val INITIAL_RETRY_DELAY_MS = 2_000L
+        private const val MAX_RETRY_DELAY_MS = 30_000L
+    }
 }

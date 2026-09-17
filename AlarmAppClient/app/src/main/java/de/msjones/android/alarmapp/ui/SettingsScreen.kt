@@ -53,6 +53,7 @@ import de.msjones.android.alarmapp.data.ServerSettings
 import de.msjones.android.alarmapp.data.ServerSettings.Companion.fromQrCode
 import de.msjones.android.alarmapp.event.MessagingEvent
 import de.msjones.android.alarmapp.event.MessagingEventBus
+import de.msjones.android.alarmapp.util.ConnectionPhase
 import de.msjones.android.alarmapp.util.ConnectionStatusTexts
 
 /**
@@ -202,7 +203,11 @@ private fun SettingsListContent(
     onDeleteConnection: (String) -> Unit,
     onToggleConnection: (ServerSettings, Boolean) -> Unit
 ) {
-    val enabledCount = connections.count { it.isActive }
+    val phases = connections.map { connection ->
+        ConnectionPhase.fromRuntime(connection.isActive, runtimeStatuses[connection.id])
+    }
+    val summary = ConnectionStatusTexts.summary(phases)
+    val hasLiveConnection = phases.any { it != ConnectionPhase.OFFLINE }
 
     Scaffold(
         topBar = {
@@ -235,9 +240,9 @@ private fun SettingsListContent(
                 Column {
                     Text("Gespeicherte Verbindungen", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = ConnectionStatusTexts.summary(enabledCount, connections.size),
+                        text = summary,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (enabledCount > 0) {
+                        color = if (hasLiveConnection) {
                             MaterialTheme.colorScheme.primary
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
@@ -283,7 +288,7 @@ private fun SettingsListContent(
 }
 
 /**
- * Karte für eine einzelne MQTT-Verbindung inklusive Aktiv-Schalter.
+ * Karte für eine einzelne MQTT-Verbindung inklusive Aktiv-Schalter und Phasenlabel.
  *
  * @param connection gespeicherte Verbindung
  * @param runtimeStatus aktueller MQTT-Status oder null
@@ -299,7 +304,8 @@ private fun ConnectionCard(
     onDelete: () -> Unit,
     onToggleEnabled: (Boolean) -> Unit,
 ) {
-    val indicatorColor = connectionStatusColor(connection.isActive, runtimeStatus)
+    val phase = ConnectionPhase.fromRuntime(connection.isActive, runtimeStatus)
+    val indicatorColor = connectionStatusColor(phase)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -346,6 +352,12 @@ private fun ConnectionCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                Text(
+                    text = ConnectionStatusTexts.phaseLabel(phase),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = indicatorColor
+                )
             }
 
             Box(
@@ -381,19 +393,17 @@ private fun ConnectionCard(
 }
 
 /**
- * Wählt die Indikatorfarbe anhand Aktiv-Status und Laufzeitstatus.
+ * Wählt die Indikatorfarbe anhand der Verbindungsphase.
  *
- * @param isEnabled ob die Verbindung vom Nutzer aktiviert ist
- * @param runtimeStatus letzter MQTT-Status oder null
+ * @param phase aktuelle Phase der Verbindung
  * @return Farbe für den Statuspunkt
  */
 @Composable
-private fun connectionStatusColor(isEnabled: Boolean, runtimeStatus: String?): Color {
-    val status = runtimeStatus.orEmpty().uppercase()
-    return when {
-        !isEnabled -> Color.Gray
-        status == "ERROR" -> MaterialTheme.colorScheme.error
-        status == "SUBSCRIBED" || status == "CONNECTED" -> MaterialTheme.colorScheme.primary
-        else -> MaterialTheme.colorScheme.tertiary
+private fun connectionStatusColor(phase: ConnectionPhase): Color {
+    return when (phase) {
+        ConnectionPhase.OFFLINE -> Color.Gray
+        ConnectionPhase.CONNECTING -> MaterialTheme.colorScheme.tertiary
+        ConnectionPhase.RECONNECTING -> MaterialTheme.colorScheme.secondary
+        ConnectionPhase.ACTIVE -> MaterialTheme.colorScheme.primary
     }
 }

@@ -17,6 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import de.msjones.android.alarmapp.data.AlarmMessage
+import de.msjones.android.alarmapp.util.ConnectionPhase
+import de.msjones.android.alarmapp.util.ConnectionStatusTexts
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -33,6 +35,10 @@ fun MessageListScreen(
     val messages = viewModel.messages.collectAsState()
     val connectionStatus by viewModel.connectionStatus.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val phase = ConnectionPhase.fromStatus(connectionStatus.status)
+    val statusText = connectionStatus.message.ifBlank {
+        ConnectionStatusTexts.phaseLabel(phase)
+    }
     
     // Show error as snackbar when connection status is ERROR
     LaunchedEffect(connectionStatus.status) {
@@ -52,14 +58,21 @@ fun MessageListScreen(
                 title = { 
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("JF Alarm App")
-                        if (connectionStatus.message.isNotEmpty()) {
+                        if (statusText.isNotEmpty()) {
                             Text(
-                                text = connectionStatus.message,
+                                text = statusText,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (connectionStatus.status.uppercase() == "ERROR") 
-                                    MaterialTheme.colorScheme.error 
-                                else 
-                                    MaterialTheme.colorScheme.primary
+                                color = when (phase) {
+                                    ConnectionPhase.OFFLINE ->
+                                        if (connectionStatus.status.uppercase() == "ERROR") {
+                                            MaterialTheme.colorScheme.error
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        }
+                                    ConnectionPhase.CONNECTING -> MaterialTheme.colorScheme.tertiary
+                                    ConnectionPhase.RECONNECTING -> MaterialTheme.colorScheme.secondary
+                                    ConnectionPhase.ACTIVE -> MaterialTheme.colorScheme.primary
+                                }
                             )
                         }
                     }
