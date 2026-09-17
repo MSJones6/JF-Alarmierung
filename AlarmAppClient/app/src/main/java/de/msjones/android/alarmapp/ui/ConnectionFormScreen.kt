@@ -31,8 +31,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import de.msjones.android.alarmapp.data.ConnectionActivation
@@ -40,6 +46,8 @@ import de.msjones.android.alarmapp.data.ServerSettings
 
 /**
  * Formular zum Anlegen oder Bearbeiten einer MQTT-Verbindung.
+ *
+ * Tab und Enter setzen den Fokus auf das nächste Eingabefeld, Umschalt+Tab auf das vorherige.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +74,7 @@ fun ConnectionFormScreen(
     var user by rememberSaveable { mutableStateOf(editingConnection?.username ?: initialUser ?: "") }
     var pass by rememberSaveable { mutableStateOf(editingConnection?.password ?: initialPass ?: "") }
     var topic by rememberSaveable { mutableStateOf(editingConnection?.topic ?: initialTopic ?: "JF/Alarm/KB") }
+    val focusManager = LocalFocusManager.current
 
     LaunchedEffect(duplicateConnectionMessage) {
         duplicateConnectionMessage?.let { message ->
@@ -114,7 +123,14 @@ fun ConnectionFormScreen(
                 value = host,
                 onValueChange = { host = it },
                 label = { Text("Host") },
-                modifier = Modifier.fillMaxWidth()
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .moveFocusOnTabOrEnter(focusManager)
             )
             Spacer(Modifier.height(8.dp))
 
@@ -122,7 +138,17 @@ fun ConnectionFormScreen(
                 value = port,
                 onValueChange = { port = it.filter { ch -> ch.isDigit() } },
                 label = { Text("Port") },
-                modifier = Modifier.fillMaxWidth()
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .moveFocusOnTabOrEnter(focusManager)
             )
             Spacer(Modifier.height(8.dp))
 
@@ -130,7 +156,14 @@ fun ConnectionFormScreen(
                 value = user,
                 onValueChange = { user = it },
                 label = { Text("Username") },
-                modifier = Modifier.fillMaxWidth()
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .moveFocusOnTabOrEnter(focusManager)
             )
             Spacer(Modifier.height(8.dp))
 
@@ -138,7 +171,17 @@ fun ConnectionFormScreen(
                 value = pass,
                 onValueChange = { pass = it },
                 label = { Text("Passwort") },
-                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .moveFocusOnTabOrEnter(focusManager),
                 visualTransformation = PasswordVisualTransformation()
             )
             Spacer(Modifier.height(8.dp))
@@ -147,7 +190,14 @@ fun ConnectionFormScreen(
                 value = topic,
                 onValueChange = { topic = it },
                 label = { Text("Queue-Name") },
-                modifier = Modifier.fillMaxWidth()
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(
+                    onDone = { focusManager.clearFocus() }
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .moveFocusOnTabOrEnter(focusManager, isLastField = true)
             )
 
             Spacer(Modifier.height(24.dp))
