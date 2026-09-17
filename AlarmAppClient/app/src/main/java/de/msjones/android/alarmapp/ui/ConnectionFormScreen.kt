@@ -31,14 +31,26 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import de.msjones.android.alarmapp.data.ConnectionActivation
 import de.msjones.android.alarmapp.data.ServerSettings
 
 /**
  * Formular zum Anlegen oder Bearbeiten einer MQTT-Verbindung.
+ *
+ * Tab und Enter setzen den Fokus auf das nächste Eingabefeld, Umschalt+Tab auf das vorherige.
+ * Nach dem letzten Feld beginnt der Durchlauf wieder beim Host.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,7 +67,7 @@ fun ConnectionFormScreen(
     onCancel: () -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-    var duplicateTopicMessage by remember { mutableStateOf<String?>(null) }
+    var duplicateConnectionMessage by remember { mutableStateOf<String?>(null) }
 
     val isEditing = editingConnection != null
 
@@ -65,11 +77,13 @@ fun ConnectionFormScreen(
     var user by rememberSaveable { mutableStateOf(editingConnection?.username ?: initialUser ?: "") }
     var pass by rememberSaveable { mutableStateOf(editingConnection?.password ?: initialPass ?: "") }
     var topic by rememberSaveable { mutableStateOf(editingConnection?.topic ?: initialTopic ?: "JF/Alarm/KB") }
+    val focusManager = LocalFocusManager.current
+    val firstFieldFocus = remember { FocusRequester() }
 
-    LaunchedEffect(duplicateTopicMessage) {
-        duplicateTopicMessage?.let { message ->
+    LaunchedEffect(duplicateConnectionMessage) {
+        duplicateConnectionMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
-            duplicateTopicMessage = null
+            duplicateConnectionMessage = null
         }
     }
 
@@ -113,7 +127,15 @@ fun ConnectionFormScreen(
                 value = host,
                 onValueChange = { host = it },
                 label = { Text("Host") },
-                modifier = Modifier.fillMaxWidth()
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(firstFieldFocus)
+                    .moveFocusOnTabOrEnter(focusManager)
             )
             Spacer(Modifier.height(8.dp))
 
@@ -121,7 +143,17 @@ fun ConnectionFormScreen(
                 value = port,
                 onValueChange = { port = it.filter { ch -> ch.isDigit() } },
                 label = { Text("Port") },
-                modifier = Modifier.fillMaxWidth()
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .moveFocusOnTabOrEnter(focusManager)
             )
             Spacer(Modifier.height(8.dp))
 
@@ -129,7 +161,14 @@ fun ConnectionFormScreen(
                 value = user,
                 onValueChange = { user = it },
                 label = { Text("Username") },
-                modifier = Modifier.fillMaxWidth()
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .moveFocusOnTabOrEnter(focusManager)
             )
             Spacer(Modifier.height(8.dp))
 
@@ -137,7 +176,17 @@ fun ConnectionFormScreen(
                 value = pass,
                 onValueChange = { pass = it },
                 label = { Text("Passwort") },
-                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Next) }
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .moveFocusOnTabOrEnter(focusManager),
                 visualTransformation = PasswordVisualTransformation()
             )
             Spacer(Modifier.height(8.dp))
@@ -146,7 +195,18 @@ fun ConnectionFormScreen(
                 value = topic,
                 onValueChange = { topic = it },
                 label = { Text("Queue-Name") },
-                modifier = Modifier.fillMaxWidth()
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(
+                    onNext = { firstFieldFocus.requestFocus() }
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .moveFocusOnTabOrEnter(
+                        focusManager = focusManager,
+                        isLastField = true,
+                        onWrapToFirst = { firstFieldFocus.requestFocus() }
+                    )
             )
 
             Spacer(Modifier.height(24.dp))
@@ -157,23 +217,28 @@ fun ConnectionFormScreen(
             ) {
                 Button(
                     onClick = {
+                        val trimmedHost = host.trim()
                         val trimmedTopic = topic.trim().ifEmpty { "JF/Alarm/KB" }
+                        val parsedPort = port.toIntOrNull() ?: 1883
 
-                        // Check for duplicate topic (excluding the current connection when editing)
-                        val existingTopic = existingConnections.any {
-                            it.topic.equals(trimmedTopic, ignoreCase = true) &&
-                                    it.id != editingConnection?.id
-                        }
+                        val isDuplicate = ConnectionActivation.isDuplicateConnection(
+                            connections = existingConnections,
+                            host = trimmedHost,
+                            port = parsedPort,
+                            topic = trimmedTopic,
+                            excludeId = editingConnection?.id
+                        )
 
-                        if (existingTopic) {
-                            duplicateTopicMessage = "Diese Queue-Name existiert bereits!"
+                        if (isDuplicate) {
+                            duplicateConnectionMessage =
+                                "Diese Verbindung mit Host, Port und Queue existiert bereits!"
                             return@Button
                         }
 
                         val settings = ServerSettings(
                             id = editingConnection?.id ?: java.util.UUID.randomUUID().toString(),
-                            host = host.trim(),
-                            port = port.toIntOrNull() ?: 1883,
+                            host = trimmedHost,
+                            port = parsedPort,
                             username = user.trim(),
                             password = pass,
                             topic = trimmedTopic,

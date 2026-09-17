@@ -4,8 +4,10 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import de.msjones.android.alarmapp.util.ConnectionStatusTexts
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
@@ -133,8 +135,15 @@ class SettingsStore private constructor(context: Context) {
         MutableStateFlow(statusPrefs.getString(KEY_STATUS_TIMESTAMP, null)?.toLongOrNull())
     val connectionStatusTimestamp: Flow<Long?> = _connectionStatusTimestamp.asStateFlow()
 
+    private val _runtimeStatuses = MutableStateFlow<Map<String, String>>(emptyMap())
+    val runtimeStatuses: StateFlow<Map<String, String>> = _runtimeStatuses.asStateFlow()
+
+    private val _runtimeMessages = MutableStateFlow<Map<String, String>>(emptyMap())
+    val runtimeMessages: StateFlow<Map<String, String>> = _runtimeMessages.asStateFlow()
+
     init {
         loadConnections()
+        publishAggregateStatus()
     }
 
     /** Lädt Verbindungen aus dem verschlüsselten Speicher in den Flow. */
@@ -183,6 +192,7 @@ class SettingsStore private constructor(context: Context) {
     suspend fun deleteConnection(id: String) {
         val updatedConnections = _connectionsFlow.value.filter { it.id != id }
         persistConnections(updatedConnections)
+        clearRuntimeStatus(id)
 
         if (getActiveConnectionId() == id) {
             clearActiveConnection()
@@ -229,6 +239,7 @@ class SettingsStore private constructor(context: Context) {
         connections.forEach { jsonArray.put(it.toJson()) }
         encryptedPrefs.edit().putString(KEY_CONNECTIONS, jsonArray.toString()).apply()
         _connectionsFlow.value = connections
+        publishAggregateStatus()
     }
 
     /** Setzt die aktive Verbindung. */
@@ -241,6 +252,65 @@ class SettingsStore private constructor(context: Context) {
     suspend fun clearActiveConnection() {
         encryptedPrefs.edit().remove(KEY_ACTIVE_CONNECTION_ID).apply()
         _activeConnectionId.value = null
+    }
+
+    /**
+     * Merkt den Laufzeitstatus einer einzelnen Verbindung und aktualisiert die Gesamtanzeige.
+     *
+     * @param connectionId Kennung der Verbindung
+     * @param status Statuscode wie SUBSCRIBED oder OFFLINE
+     * @param message Anzeigetext oder leer
+     */
+    fun setRuntimeStatus(connectionId: String, status: String, message: String = "") {
+        if (connectionId.isBlank()) {
+            return
+        }
+        _runtimeStatuses.value = _runtimeStatuses.value + (connectionId to status)
+        _runtimeMessages.value = if (message.isNotBlank()) {
+            _runtimeMessages.value + (connectionId to message)
+        } else {
+            _runtimeMessages.value - connectionId
+        }
+        publishAggregateStatus()
+    }
+
+    /**
+     * Entfernt den Laufzeitstatus einer Verbindung.
+     *
+     * @param connectionId Kennung der Verbindung
+     */
+    fun clearRuntimeStatus(connectionId: String) {
+        if (connectionId.isBlank()) {
+            return
+        }
+        _runtimeStatuses.value = _runtimeStatuses.value - connectionId
+        _runtimeMessages.value = _runtimeMessages.value - connectionId
+        publishAggregateStatus()
+    }
+
+    /**
+     * Löscht alle Laufzeitstatus, etwa wenn der Messaging-Dienst beendet wird.
+     */
+    fun clearAllRuntimeStatuses() {
+        _runtimeStatuses.value = emptyMap()
+        _runtimeMessages.value = emptyMap()
+        publishAggregateStatus()
+    }
+
+    /**
+     * Schreibt die verdichtete Statuszeile aller Verbindungen in die bestehenden Status-Flows.
+     */
+    private fun publishAggregateStatus() {
+        val connections = _connectionsFlow.value
+        val statuses = _runtimeStatuses.value
+        val messages = _runtimeMessages.value
+        val phase = ConnectionStatusTexts.overallPhase(
+            ConnectionStatusTexts.phasesFor(connections, statuses)
+        )
+        val summary = ConnectionStatusTexts.displaySummary(connections, statuses, messages)
+        _connectionStatus.value = ConnectionStatusTexts.statusCode(phase)
+        _connectionStatusMessage.value = summary
+        _connectionStatusTimestamp.value = System.currentTimeMillis()
     }
 
     /** Speichert Status und Nachricht der MQTT-Verbindung. */
@@ -269,9 +339,9 @@ class SettingsStore private constructor(context: Context) {
             .remove(KEY_STATUS_MESSAGE)
             .remove(KEY_STATUS_TIMESTAMP)
             .apply()
-        _connectionStatus.value = null
-        _connectionStatusMessage.value = null
-        _connectionStatusTimestamp.value = null
+        _runtimeStatuses.value = emptyMap()
+        _runtimeMessages.value = emptyMap()
+        publishAggregateStatus()
     }
 
     /** Legt eine Standardverbindung an, falls noch keine existiert. */

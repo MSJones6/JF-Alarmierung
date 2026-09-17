@@ -30,4 +30,5 @@ target/
 AlarmAppClient/app/build/
 mosquitto.db
 mosquitto.log
+AlarmAppServer/mosquitto/log
 

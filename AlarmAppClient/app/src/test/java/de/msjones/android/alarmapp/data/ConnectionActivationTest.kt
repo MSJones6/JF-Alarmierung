@@ -59,6 +59,59 @@ class ConnectionActivationTest {
         assertTrue(result.none { it.isActive })
         assertEquals(2, result.size)
     }
+
+    /** Gleiches Topic auf einem anderen Host ist erlaubt. */
+    @Test
+    fun isDuplicateConnection_allowsSameTopicOnDifferentHost() {
+        val existing = ServerSettings(id = "a", host = "broker-a", port = 1883, topic = "JF/Alarm/#")
+        val duplicate = ConnectionActivation.isDuplicateConnection(
+            connections = listOf(existing),
+            host = "broker-b",
+            port = 1883,
+            topic = "JF/Alarm/#"
+        )
+        assertFalse(duplicate)
+    }
+
+    /** Gleiches Topic auf einem anderen Port ist erlaubt. */
+    @Test
+    fun isDuplicateConnection_allowsSameTopicOnDifferentPort() {
+        val existing = ServerSettings(id = "a", host = "broker-a", port = 1883, topic = "JF/Alarm/#")
+        val duplicate = ConnectionActivation.isDuplicateConnection(
+            connections = listOf(existing),
+            host = "broker-a",
+            port = 8883,
+            topic = "JF/Alarm/#"
+        )
+        assertFalse(duplicate)
+    }
+
+    /** Host, Port und Topic zusammen gelten als Duplikat. */
+    @Test
+    fun isDuplicateConnection_rejectsSameHostPortAndTopic() {
+        val existing = ServerSettings(id = "a", host = "Broker.Local", port = 1883, topic = "JF/Alarm/#")
+        val duplicate = ConnectionActivation.isDuplicateConnection(
+            connections = listOf(existing),
+            host = "broker.local",
+            port = 1883,
+            topic = "jf/alarm/#"
+        )
+        assertTrue(duplicate)
+    }
+
+    /** Beim Bearbeiten zählt die eigene Verbindung nicht als Duplikat. */
+    @Test
+    fun isDuplicateConnection_ignoresConnectionBeingEdited() {
+        val existing = ServerSettings(id = "a", host = "broker-a", port = 1883, topic = "JF/Alarm/#")
+        val duplicate = ConnectionActivation.isDuplicateConnection(
+            connections = listOf(existing),
+            host = "broker-a",
+            port = 1883,
+            topic = "JF/Alarm/#",
+            excludeId = "a"
+        )
+        assertFalse(duplicate)
+    }
 }
 
 /**
