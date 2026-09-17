@@ -59,7 +59,7 @@ class MessagingService : LifecycleService() {
         val port = intent?.getIntExtra(EXTRA_PORT, 1883) ?: 1883
         val username = intent?.getStringExtra(EXTRA_USERNAME) ?: ""
         val password = intent?.getStringExtra(EXTRA_PASSWORD) ?: ""
-        val topic = intent?.getStringExtra(EXTRA_TOPIC) ?: "JF/Alarm"
+        val topic = intent?.getStringExtra(EXTRA_TOPIC) ?: "JF/Alarm/KB"
         val connectionId = intent?.getStringExtra(EXTRA_CONNECTION_ID) ?: "unknown"
         val ssl = intent?.getBooleanExtra(EXTRA_SSL, false) ?: false
 

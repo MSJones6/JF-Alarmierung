@@ -140,6 +140,7 @@ class MqttClientWrapper(
         try {
             client?.subscribeWith()
                 ?.topicFilter(topic)
+                ?.qos(com.hivemq.client.mqtt.datatypes.MqttQos.AT_LEAST_ONCE)
                 ?.callback { publish: Mqtt3Publish ->
                     val payloadBytes = publish.payload
                         .map { buffer ->
@@ -151,12 +152,12 @@ class MqttClientWrapper(
 
                     val message = String(payloadBytes, StandardCharsets.UTF_8)
 
-                    // Callback an MessagingService auf MainThread
                     lifecycleOwner.lifecycleScope.launch {
                         onMessage(message)
                     }
                 }
                 ?.send()
+                ?.await()
             onState("SUBSCRIBED:Abonniert: $topic")
         } catch (e: Exception) {
             onState("ERROR:Fehler beim Abonnieren: ${e.message}")

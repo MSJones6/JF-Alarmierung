@@ -21,7 +21,7 @@ data class ServerSettings(
     val port: Int = 1883,
     val username: String = "",
     val password: String = "",
-    val topic: String = "JF/Alarm",
+    val topic: String = "JF/Alarm/KB",
     val isActive: Boolean = false,
     val ssl: Boolean = false
 ) {
@@ -52,7 +52,7 @@ data class ServerSettings(
                 port = json.optInt("port", 1883),
                 username = json.optString("username", ""),
                 password = json.optString("password", ""),
-                topic = json.optString("topic", "JF/Alarm"),
+                topic = json.optString("topic", "JF/Alarm/KB"),
                 isActive = json.optBoolean("isActive", false),
                 ssl = json.optBoolean("ssl", false)
             )
@@ -77,7 +77,7 @@ data class ServerSettings(
                         port = json.optInt("port", 1883),
                         username = json.optString("username", ""),
                         password = json.optString("password", ""),
-                        topic = json.optString("topic", "JF/Alarm"),
+                        topic = json.optString("topic", "JF/Alarm/KB"),
                         isActive = false,
                         ssl = json.optBoolean("ssl", false)
                     )

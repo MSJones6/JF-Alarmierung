@@ -54,9 +54,9 @@ class MainActivity : ComponentActivity() {
                 ServerSettings(
                     host = "localhost",
                     port = 1883,
-                    username = "guest",
-                    password = "guest",
-                    topic = "JF/Alarm"
+                    username = "reader",
+                    password = "reader",
+                    topic = "JF/Alarm/KB"
                 )
             )
         }

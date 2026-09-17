@@ -67,7 +67,7 @@ class ServerSettingsQrCodeTest {
               "port": 8883,
               "username": "user",
               "password": "secret",
-              "topic": "JF/Alarm",
+              "topic": "JF/Alarm/#",
               "ssl": true
             }
         """.trimIndent()
@@ -77,7 +77,7 @@ class ServerSettingsQrCodeTest {
         assertEquals(8883, settings?.port)
         assertEquals("user", settings?.username)
         assertEquals("secret", settings?.password)
-        assertEquals("JF/Alarm", settings?.topic)
+        assertEquals("JF/Alarm/#", settings?.topic)
         assertTrue(settings?.ssl == true)
     }
 

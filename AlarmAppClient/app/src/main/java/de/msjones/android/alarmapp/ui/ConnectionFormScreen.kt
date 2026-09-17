@@ -64,7 +64,7 @@ fun ConnectionFormScreen(
     var port by rememberSaveable { mutableStateOf(editingConnection?.port?.toString() ?: initialPort ?: "1883") }
     var user by rememberSaveable { mutableStateOf(editingConnection?.username ?: initialUser ?: "") }
     var pass by rememberSaveable { mutableStateOf(editingConnection?.password ?: initialPass ?: "") }
-    var topic by rememberSaveable { mutableStateOf(editingConnection?.topic ?: initialTopic ?: "JF/Alarm") }
+    var topic by rememberSaveable { mutableStateOf(editingConnection?.topic ?: initialTopic ?: "JF/Alarm/KB") }
 
     LaunchedEffect(duplicateTopicMessage) {
         duplicateTopicMessage?.let { message ->
@@ -157,7 +157,7 @@ fun ConnectionFormScreen(
             ) {
                 Button(
                     onClick = {
-                        val trimmedTopic = topic.trim().ifEmpty { "JF/Alarm" }
+                        val trimmedTopic = topic.trim().ifEmpty { "JF/Alarm/KB" }
 
                         // Check for duplicate topic (excluding the current connection when editing)
                         val existingTopic = existingConnections.any {
