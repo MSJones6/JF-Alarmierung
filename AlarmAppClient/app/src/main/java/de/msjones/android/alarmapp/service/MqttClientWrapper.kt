@@ -76,6 +76,8 @@ class MqttClientWrapper(
 
     /**
      * Baut den MQTT-Client inkl. Connect- und Disconnect-Listener.
+     * Der Reconnect wartet zuerst [RECONNECT_INITIAL_DELAY_SECONDS] und höchstens
+     * [RECONNECT_MAX_DELAY_SECONDS] Sekunden zwischen den Versuchen.
      */
     private fun createClient() {
         val protocol = if (serverUri.startsWith("ssl://")) "ssl" else "tcp"
@@ -91,7 +93,10 @@ class MqttClientWrapper(
             .username(user)
             .password(pass.toByteArray())
             .applySimpleAuth()
-            .automaticReconnectWithDefaultConfig()
+            .automaticReconnect()
+            .initialDelay(RECONNECT_INITIAL_DELAY_SECONDS, TimeUnit.SECONDS)
+            .maxDelay(RECONNECT_MAX_DELAY_SECONDS, TimeUnit.SECONDS)
+            .applyAutomaticReconnect()
             .addConnectedListener { _ ->
                 if (stopped.get()) {
                     return@addConnectedListener
@@ -307,22 +312,28 @@ class MqttClientWrapper(
     }
 
     /**
-     * Begrenzt die Reconnect-Warteanzeige auf einen sinnvollen Bereich.
+     * Begrenzt die Reconnect-Warteanzeige auf die konfigurierte Maximalpause.
      *
      * @param delaySeconds Delay aus dem HiveMQ-Reconnector
      * @return Anzeigezeit in Sekunden
      */
     private fun reconnectWaitSeconds(delaySeconds: Long): Int {
-        return delaySeconds.toInt().coerceIn(1, MAX_RECONNECT_WAIT_SECONDS)
+        return delaySeconds.toInt().coerceIn(
+            RECONNECT_INITIAL_DELAY_SECONDS.toInt(),
+            RECONNECT_MAX_DELAY_SECONDS.toInt()
+        )
     }
 
     companion object {
         const val CONNECT_TIMEOUT_SECONDS = 20
         const val SOCKET_CONNECT_TIMEOUT_SECONDS = 10
         const val MQTT_CONNECT_TIMEOUT_SECONDS = 15
+        /** Erste Pause vor einem Reconnect in Sekunden. */
+        const val RECONNECT_INITIAL_DELAY_SECONDS = 1L
+        /** Maximale Pause zwischen Reconnect-Versuchen in Sekunden. */
+        const val RECONNECT_MAX_DELAY_SECONDS = 30L
         private const val CONNECT_TIMEOUT_MS = CONNECT_TIMEOUT_SECONDS * 1000L
         private const val WAIT_TICK_MS = 1_000L
         private const val DEFAULT_RECONNECT_WAIT_SECONDS = 1
-        private const val MAX_RECONNECT_WAIT_SECONDS = 30
     }
 }
