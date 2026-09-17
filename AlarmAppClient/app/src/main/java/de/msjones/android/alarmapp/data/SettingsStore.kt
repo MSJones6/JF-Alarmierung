@@ -92,17 +92,19 @@ data class ServerSettings(
 /**
  * Persistente Verwaltung der MQTT-Verbindungen (verschlüsselt) und des Verbindungsstatus.
  *
- * Verzichtet bewusst auf AndroidX DataStore, dessen native Shared-Counter-Lib kein
- * korrektes 16-KB-RELRO liefert und die Systemwarnung auslöst.
+ * Prozessweiter Singleton: Service, Activity und ViewModel müssen dieselbe Instanz nutzen,
+ * damit Status-Updates in der UI ankommen.
  */
-class SettingsStore(private val context: Context) {
+class SettingsStore private constructor(context: Context) {
 
-    private val masterKey = MasterKey.Builder(context)
+    private val appContext = context.applicationContext
+
+    private val masterKey = MasterKey.Builder(appContext)
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
         .build()
 
     private val encryptedPrefs: SharedPreferences = EncryptedSharedPreferences.create(
-        context,
+        appContext,
         "secure_settings",
         masterKey,
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
@@ -110,7 +112,7 @@ class SettingsStore(private val context: Context) {
     )
 
     private val statusPrefs: SharedPreferences =
-        context.getSharedPreferences(STATUS_PREFS, Context.MODE_PRIVATE)
+        appContext.getSharedPreferences(STATUS_PREFS, Context.MODE_PRIVATE)
 
     private val _connectionsFlow = MutableStateFlow<List<ServerSettings>>(emptyList())
     val flow: Flow<List<ServerSettings>> = _connectionsFlow.asStateFlow()
@@ -254,5 +256,19 @@ class SettingsStore(private val context: Context) {
         private const val KEY_STATUS = "connection_status"
         private const val KEY_STATUS_MESSAGE = "connection_status_message"
         private const val KEY_STATUS_TIMESTAMP = "connection_status_timestamp"
+
+        @Volatile
+        private var instance: SettingsStore? = null
+
+        /**
+         * Liefert die gemeinsame SettingsStore-Instanz für den gesamten Prozess.
+         *
+         * @param context beliebiger Context (wird auf ApplicationContext normalisiert)
+         */
+        fun getInstance(context: Context): SettingsStore {
+            return instance ?: synchronized(this) {
+                instance ?: SettingsStore(context.applicationContext).also { instance = it }
+            }
+        }
     }
 }

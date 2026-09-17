@@ -29,7 +29,7 @@ data class ConnectionStatus(
 class MessageViewModel(application: Application) : AndroidViewModel(application) {
 
     private val store = MessageStore(application)
-    private val settingsStore = SettingsStore(application)
+    private val settingsStore = SettingsStore.getInstance(application)
 
     val messages: StateFlow<List<AlarmMessage>> = store.flow
         .stateIn(

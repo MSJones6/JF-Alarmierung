@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        store = SettingsStore(this)
+        store = SettingsStore.getInstance(this)
 
         if (Build.VERSION.SDK_INT >= 33) {
             reqNotifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)

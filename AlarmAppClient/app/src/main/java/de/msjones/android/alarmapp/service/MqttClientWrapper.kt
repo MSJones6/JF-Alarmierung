@@ -9,7 +9,9 @@ import com.hivemq.client.mqtt.mqtt3.message.connect.connack.Mqtt3ConnAck
 import com.hivemq.client.mqtt.mqtt3.message.publish.Mqtt3Publish
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -46,6 +48,10 @@ class MqttClientWrapper(
                 .serverHost(host)
                 .serverPort(port)
                 .automaticReconnectWithDefaultConfig()
+                .transportConfig()
+                .mqttConnectTimeout(15, TimeUnit.SECONDS)
+                .socketConnectTimeout(10, TimeUnit.SECONDS)
+                .applyTransportConfig()
 
             if (protocol == "ssl") {
                 builder.sslWithDefaultConfig()
@@ -53,14 +59,16 @@ class MqttClientWrapper(
 
             client = builder.buildAsync()
 
-            val connAck: Mqtt3ConnAck = client?.connectWith()
-                ?.simpleAuth()
-                ?.username(user)
-                ?.password(pass.toByteArray())
-                ?.applySimpleAuth()
-                ?.keepAlive(45)
-                ?.send()
-                ?.await() ?: throw Exception("Verbindung fehlgeschlagen")
+            val connAck: Mqtt3ConnAck = withTimeout(20_000) {
+                client?.connectWith()
+                    ?.simpleAuth()
+                    ?.username(user)
+                    ?.password(pass.toByteArray())
+                    ?.applySimpleAuth()
+                    ?.keepAlive(45)
+                    ?.send()
+                    ?.await() ?: throw Exception("Verbindung fehlgeschlagen")
+            }
 
             // Check connection result
             if (connAck.returnCode.isError) {
@@ -96,24 +104,28 @@ class MqttClientWrapper(
                                 message.lowercase().contains("unknown host") ||
                                 message.lowercase().contains("no address associated")
             
-            // Detect authentication-specific errors
+            // Nur echte Auth-Fehler – „connection refused“ ist ein Netz-/Broker-Problem.
             val msgLower = message.lowercase()
             val isAuthError = msgLower.contains("not authorized") ||
                               msgLower.contains("authentication failed") ||
                               msgLower.contains("bad username") ||
+                              msgLower.contains("bad user name") ||
                               msgLower.contains("bad user") ||
-                              msgLower.contains("connection refused") ||
                               msgLower.contains("identifier rejected") ||
-                              msgLower.contains("credentials") ||
-                              msgLower.contains("not_authorized") ||
-                              msgLower.contains("auth")
-            
-            if (isUnknownHost) {
-                onState("ERROR:Verbindungsfehler: Server '$serverUri' nicht erreichbar (UnknownHost)")
-            } else if (isAuthError) {
-                onAuthError?.invoke("Falscher Benutzername oder Passwort")
-            } else {
-                onState("ERROR:Fehler beim Verbinden: $message")
+                              msgLower.contains("bad credentials") ||
+                              msgLower.contains("not_authorized")
+
+            when {
+                isUnknownHost ->
+                    onState("ERROR:Verbindungsfehler: Server '$serverUri' nicht erreichbar (UnknownHost)")
+                msgLower.contains("connection refused") || msgLower.contains("connectexception") ->
+                    onState("ERROR:Verbindung abgelehnt – Broker unter $serverUri nicht erreichbar")
+                msgLower.contains("timeout") || e is kotlinx.coroutines.TimeoutCancellationException ->
+                    onState("ERROR:Zeitüberschreitung beim Verbinden mit $serverUri")
+                isAuthError ->
+                    onAuthError?.invoke("Falscher Benutzername oder Passwort")
+                else ->
+                    onState("ERROR:Fehler beim Verbinden: $message")
             }
             isConnected.set(false)
         }

@@ -42,7 +42,7 @@ class MessagingService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         helper = NotificationHelper(this)
-        settingsStore = SettingsStore(this)
+        settingsStore = SettingsStore.getInstance(this)
         running.set(true)
         MessagingEventBus.tryEmit(MessagingEvent.ServiceRunningState(true))
     }

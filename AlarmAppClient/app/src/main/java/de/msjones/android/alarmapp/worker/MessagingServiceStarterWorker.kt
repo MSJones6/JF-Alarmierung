@@ -22,7 +22,7 @@ class MessagingServiceStarterWorker(
      */
     override suspend fun doWork(): Result {
         return try {
-            val store = SettingsStore(applicationContext)
+            val store = SettingsStore.getInstance(applicationContext)
             store.migrateIfNeeded()
             val connections = store.getConnectionsSnapshot()
 
