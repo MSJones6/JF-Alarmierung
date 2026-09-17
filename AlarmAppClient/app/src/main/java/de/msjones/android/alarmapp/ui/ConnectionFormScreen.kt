@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import de.msjones.android.alarmapp.data.ConnectionActivation
 import de.msjones.android.alarmapp.data.ServerSettings
 
 /**
@@ -55,7 +56,7 @@ fun ConnectionFormScreen(
     onCancel: () -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-    var duplicateTopicMessage by remember { mutableStateOf<String?>(null) }
+    var duplicateConnectionMessage by remember { mutableStateOf<String?>(null) }
 
     val isEditing = editingConnection != null
 
@@ -66,10 +67,10 @@ fun ConnectionFormScreen(
     var pass by rememberSaveable { mutableStateOf(editingConnection?.password ?: initialPass ?: "") }
     var topic by rememberSaveable { mutableStateOf(editingConnection?.topic ?: initialTopic ?: "JF/Alarm/KB") }
 
-    LaunchedEffect(duplicateTopicMessage) {
-        duplicateTopicMessage?.let { message ->
+    LaunchedEffect(duplicateConnectionMessage) {
+        duplicateConnectionMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
-            duplicateTopicMessage = null
+            duplicateConnectionMessage = null
         }
     }
 
@@ -157,23 +158,28 @@ fun ConnectionFormScreen(
             ) {
                 Button(
                     onClick = {
+                        val trimmedHost = host.trim()
                         val trimmedTopic = topic.trim().ifEmpty { "JF/Alarm/KB" }
+                        val parsedPort = port.toIntOrNull() ?: 1883
 
-                        // Check for duplicate topic (excluding the current connection when editing)
-                        val existingTopic = existingConnections.any {
-                            it.topic.equals(trimmedTopic, ignoreCase = true) &&
-                                    it.id != editingConnection?.id
-                        }
+                        val isDuplicate = ConnectionActivation.isDuplicateConnection(
+                            connections = existingConnections,
+                            host = trimmedHost,
+                            port = parsedPort,
+                            topic = trimmedTopic,
+                            excludeId = editingConnection?.id
+                        )
 
-                        if (existingTopic) {
-                            duplicateTopicMessage = "Diese Queue-Name existiert bereits!"
+                        if (isDuplicate) {
+                            duplicateConnectionMessage =
+                                "Diese Verbindung mit Host, Port und Queue existiert bereits!"
                             return@Button
                         }
 
                         val settings = ServerSettings(
                             id = editingConnection?.id ?: java.util.UUID.randomUUID().toString(),
-                            host = host.trim(),
-                            port = port.toIntOrNull() ?: 1883,
+                            host = trimmedHost,
+                            port = parsedPort,
                             username = user.trim(),
                             password = pass,
                             topic = trimmedTopic,

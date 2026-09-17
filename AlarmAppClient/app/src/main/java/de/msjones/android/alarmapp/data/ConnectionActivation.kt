@@ -42,4 +42,31 @@ object ConnectionActivation {
     fun disableAll(connections: List<ServerSettings>): List<ServerSettings> {
         return connections.map { it.copy(isActive = false) }
     }
+
+    /**
+     * Prüft, ob bereits eine Verbindung mit gleichem Host, Port und Topic existiert.
+     *
+     * @param connections gespeicherte Verbindungen
+     * @param host Broker-Host
+     * @param port Broker-Port
+     * @param topic MQTT-Topic
+     * @param excludeId Kennung der gerade bearbeiteten Verbindung oder null
+     * @return true bei identischer Kombination aus Host, Port und Topic
+     */
+    fun isDuplicateConnection(
+        connections: List<ServerSettings>,
+        host: String,
+        port: Int,
+        topic: String,
+        excludeId: String? = null
+    ): Boolean {
+        val trimmedHost = host.trim()
+        val trimmedTopic = topic.trim()
+        return connections.any { connection ->
+            connection.id != excludeId &&
+                connection.host.equals(trimmedHost, ignoreCase = true) &&
+                connection.port == port &&
+                connection.topic.equals(trimmedTopic, ignoreCase = true)
+        }
+    }
 }
