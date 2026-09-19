@@ -19,7 +19,8 @@ const sampleAlarms: AlarmItem[] = [
 	{
 		id: '1',
 		scheduledAt: '2025-04-24T14:30:15',
-		topic: 'Gebäude 3',
+		connection: 'Standard',
+		location: 'Gebäude 3',
 		keyword: 'Feueralarm',
 		info: 'Rauchentwicklung',
 		status: 'planned'
@@ -27,7 +28,8 @@ const sampleAlarms: AlarmItem[] = [
 	{
 		id: '2',
 		scheduledAt: '2025-04-25T09:00:00',
-		topic: 'IT-Systeme',
+		connection: 'Standard',
+		location: 'IT-Systeme',
 		keyword: 'Warnung',
 		info: 'Wartung',
 		status: 'sent'
@@ -49,11 +51,24 @@ describe('buildMqttPayload', () => {
 		expect(
 			buildMqttPayload({
 				scheduledAt: '2025-04-24T14:30:15',
-				topic: 'Gebäude 3',
+				connection: 'Standard',
+				location: 'Gebäude 3',
 				keyword: 'Feueralarm',
 				info: 'Rauchentwicklung im Serverraum'
 			})
 		).toBe('Feueralarm###Gebäude 3###Rauchentwicklung im Serverraum');
+	});
+
+	it('verwendet den Ort und nicht den Connection-Namen', () => {
+		expect(
+			buildMqttPayload({
+				scheduledAt: '2025-04-24T14:30:15',
+				connection: 'Host Nord',
+				location: 'Turnhalle',
+				keyword: 'Warnung',
+				info: 'Probe'
+			})
+		).toBe('Warnung###Turnhalle###Probe');
 	});
 });
 
@@ -62,7 +77,8 @@ describe('validateAlarmDraft', () => {
 		expect(
 			validateAlarmDraft({
 				scheduledAt: '2025-04-24T14:30:15',
-				topic: 'Gebäude 3',
+				connection: 'Standard',
+				location: 'Gebäude 3',
 				keyword: 'Feueralarm',
 				info: 'Test'
 			})
@@ -73,11 +89,36 @@ describe('validateAlarmDraft', () => {
 		expect(
 			validateAlarmDraft({
 				scheduledAt: '',
-				topic: 'Gebäude 3',
+				connection: 'Standard',
+				location: 'Gebäude 3',
 				keyword: 'Feueralarm',
 				info: ''
 			})
 		).toBe('Bitte wählen Sie einen Zeitpunkt.');
+	});
+
+	it('lehnt eine fehlende Connection ab', () => {
+		expect(
+			validateAlarmDraft({
+				scheduledAt: '2025-04-24T14:30:15',
+				connection: '',
+				location: 'Gebäude 3',
+				keyword: 'Feueralarm',
+				info: ''
+			})
+		).toBe('Bitte wählen Sie eine Connection.');
+	});
+
+	it('lehnt einen leeren Ort ab', () => {
+		expect(
+			validateAlarmDraft({
+				scheduledAt: '2025-04-24T14:30:15',
+				connection: 'Standard',
+				location: '   ',
+				keyword: 'Feueralarm',
+				info: ''
+			})
+		).toBe('Bitte geben Sie einen Ort ein.');
 	});
 });
 
@@ -86,7 +127,8 @@ describe('Alarmlisten-Operationen', () => {
 		const alarm = createAlarm(
 			{
 				scheduledAt: '2025-04-24T14:30:15',
-				topic: 'Gebäude 3',
+				connection: 'Standard',
+				location: 'Gebäude 3',
 				keyword: 'Feueralarm',
 				info: '  Rauch  '
 			},
@@ -96,6 +138,8 @@ describe('Alarmlisten-Operationen', () => {
 
 		expect(alarm).toMatchObject({
 			id: 'generated-id',
+			connection: 'Standard',
+			location: 'Gebäude 3',
 			info: 'Rauch',
 			status: 'planned'
 		});
@@ -104,11 +148,12 @@ describe('Alarmlisten-Operationen', () => {
 	it('aktualisiert und löscht Einträge', () => {
 		const updated = updateAlarm(sampleAlarms, '1', {
 			scheduledAt: '2025-04-24T15:00:00',
-			topic: 'Eingang',
+			connection: 'Standard',
+			location: 'Eingang',
 			keyword: 'Info',
 			info: 'Aktualisiert'
 		});
-		expect(updated[0]?.topic).toBe('Eingang');
+		expect(updated[0]?.location).toBe('Eingang');
 		expect(deleteAlarm(updated, '1')).toHaveLength(1);
 	});
 
@@ -121,6 +166,11 @@ describe('Alarmlisten-Operationen', () => {
 	it('sortiert nach Stichwort aufsteigend', () => {
 		const sorted = sortAlarms(sampleAlarms, 'keyword', 'asc');
 		expect(sorted.map((item) => item.keyword)).toEqual(['Feueralarm', 'Warnung']);
+	});
+
+	it('sortiert nach Ort aufsteigend', () => {
+		const sorted = sortAlarms(sampleAlarms, 'location', 'asc');
+		expect(sorted.map((item) => item.location)).toEqual(['Gebäude 3', 'IT-Systeme']);
 	});
 
 	it('wechselt die Sortierrichtung bei gleicher Spalte', () => {

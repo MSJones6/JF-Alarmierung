@@ -1,6 +1,9 @@
+import { KEYWORDS } from './alarm';
 import { DEFAULT_MQTT_SETTINGS } from './mqtt';
+import { normalizeOptions } from './option-list';
 import { resolveStorage } from './storage';
-import type { MqttSettings, StorageLike } from './types';
+import { createTopicConnection } from './topic-connection';
+import type { AppSettings, MqttSettings, StorageLike, TopicConnection } from './types';
 
 /** Öffentliche URL der mitgelieferten Standardkonfiguration. */
 export const MQTT_CONFIG_URL = '/mqtt-config.json';
@@ -8,8 +11,21 @@ export const MQTT_CONFIG_URL = '/mqtt-config.json';
 /** Öffentliche URL der optionalen lokalen Überschreibung, ohne Neu-Build. */
 export const MQTT_LOCAL_CONFIG_URL = '/mqtt-config.local.json';
 
-/** Schlüssel für im Browser gespeicherte Broker-Einstellungen. */
+/** Schlüssel für im Browser gespeicherte App-Einstellungen. */
 export const MQTT_SETTINGS_STORAGE_KEY = 'jf-mqtt-settings';
+
+/** Standard-Connection mit den mitgelieferten Broker-Daten. */
+export const DEFAULT_TOPIC_CONNECTION: TopicConnection = createTopicConnection({
+	id: 'standard',
+	name: 'Standard',
+	mqttTopic: 'JF/Alarm/KB'
+});
+
+/** Vollständige Standard-Einstellungen inkl. Connections. */
+export const DEFAULT_APP_SETTINGS: AppSettings = {
+	keywords: [...KEYWORDS],
+	topics: [{ ...DEFAULT_TOPIC_CONNECTION }]
+};
 
 /**
  * Wandelt unbekannte JSON-Daten in MQTT-Einstellungen um.
@@ -36,6 +52,50 @@ export function parseMqttConfig(raw: unknown): MqttSettings {
 }
 
 /**
+ * Wandelt unbekannte JSON-Daten in eine Connection um.
+ *
+ * @param raw geparstes JSON
+ * @param fallback Broker-Werte, wenn Felder fehlen
+ * @returns Connection
+ */
+export function parseTopicConnection(
+	raw: unknown,
+	fallback: MqttSettings = DEFAULT_MQTT_SETTINGS
+): TopicConnection {
+	const data =
+		raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+	const mqtt = parseMqttConfig({ ...fallback, ...data });
+	const name = readText(data.name, 'Standard');
+	const id = readText(data.id, name);
+
+	return {
+		...mqtt,
+		id,
+		name
+	};
+}
+
+/**
+ * Wandelt unbekannte JSON-Daten in vollständige App-Einstellungen um.
+ *
+ * Jede Connection trägt eigene Host-, Konto- und Broker-Daten. Alte Namenslisten
+ * werden mit den globalen Broker-Feldern zu Verbindungen ergänzt.
+ *
+ * @param raw geparstes JSON
+ * @returns Stichworte und Connections
+ */
+export function parseAppSettings(raw: unknown): AppSettings {
+	const data =
+		raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+	const mqttFallback = parseMqttConfig(data);
+
+	return {
+		keywords: parseOptionList(data.keywords, KEYWORDS),
+		topics: parseTopicConnections(data.topics, mqttFallback)
+	};
+}
+
+/**
  * Liest einen Text- oder Zahlenwert aus der Konfiguration.
  *
  * @param value Rohwert aus JSON
@@ -53,6 +113,65 @@ function readText(value: unknown, fallback: string): string {
 }
 
 /**
+ * Liest eine Auswahlliste oder fällt auf die Standardwerte zurück.
+ *
+ * @param value Rohwert aus JSON
+ * @param fallback Standardliste
+ * @returns bereinigte Liste
+ */
+function parseOptionList(value: unknown, fallback: string[]): string[] {
+	if (!Array.isArray(value)) {
+		return [...fallback];
+	}
+	return normalizeOptions(value);
+}
+
+/**
+ * Liest Connections aus JSON.
+ *
+ * @param raw Rohwert aus JSON
+ * @param fallback Broker-Werte für Namenslisten und fehlende Felder
+ * @returns Connections
+ */
+function parseTopicConnections(raw: unknown, fallback: MqttSettings): TopicConnection[] {
+	if (!Array.isArray(raw) || raw.length === 0) {
+		return [
+			parseTopicConnection(
+				{ ...fallback, name: 'Standard', id: 'standard' },
+				fallback
+			)
+		];
+	}
+
+	const connections: TopicConnection[] = [];
+	const usedIds = new Set<string>();
+
+	for (const item of raw) {
+		const parsed =
+			typeof item === 'string'
+				? parseTopicConnection({ ...fallback, name: item.trim(), id: item.trim() }, fallback)
+				: parseTopicConnection(item, fallback);
+		if (!parsed.name) {
+			continue;
+		}
+		let { id } = parsed;
+		if (usedIds.has(id)) {
+			id = `${id}-${connections.length}`;
+		}
+		usedIds.add(id);
+		connections.push({ ...parsed, id });
+	}
+
+	if (connections.length === 0) {
+		return [
+			parseTopicConnection({ ...fallback, name: 'Standard', id: 'standard' }, fallback)
+		];
+	}
+
+	return connections;
+}
+
+/**
  * Lädt eine Konfigurationsdatei ohne Browser-Cache.
  *
  * @param url relative URL unter `static/`
@@ -62,25 +181,25 @@ function readText(value: unknown, fallback: string): string {
 async function fetchMqttConfig(
 	url: string,
 	fetchFn: typeof fetch
-): Promise<MqttSettings | null> {
+): Promise<AppSettings | null> {
 	try {
 		const response = await fetchFn(url, { cache: 'no-store' });
 		if (!response.ok) {
 			return null;
 		}
-		return parseMqttConfig(await response.json());
+		return parseAppSettings(await response.json());
 	} catch {
 		return null;
 	}
 }
 
 /**
- * Liest im Browser gespeicherte Broker-Einstellungen.
+ * Liest im Browser gespeicherte App-Einstellungen.
  *
  * @param storage optionale Storage-Implementierung
  * @returns gespeicherte Einstellungen oder `null`
  */
-export function loadStoredMqttSettings(storage?: StorageLike): MqttSettings | null {
+export function loadStoredMqttSettings(storage?: StorageLike): AppSettings | null {
 	const resolved = resolveStorage(storage);
 	if (!resolved) {
 		return null;
@@ -92,28 +211,28 @@ export function loadStoredMqttSettings(storage?: StorageLike): MqttSettings | nu
 	}
 
 	try {
-		return parseMqttConfig(JSON.parse(raw));
+		return parseAppSettings(JSON.parse(raw));
 	} catch {
 		return null;
 	}
 }
 
 /**
- * Speichert Broker-Einstellungen im Browser.
+ * Speichert Stichworte und Connections im Browser.
  *
  * @param settings aktuelle Einstellungen
  * @param storage optionale Storage-Implementierung
  */
-export function saveMqttSettings(settings: MqttSettings, storage?: StorageLike): void {
+export function saveMqttSettings(settings: AppSettings, storage?: StorageLike): void {
 	const resolved = resolveStorage(storage);
 	if (!resolved) {
 		return;
 	}
-	resolved.setItem(MQTT_SETTINGS_STORAGE_KEY, JSON.stringify(parseMqttConfig(settings)));
+	resolved.setItem(MQTT_SETTINGS_STORAGE_KEY, JSON.stringify(parseAppSettings(settings)));
 }
 
 /**
- * Lädt die MQTT-Broker-Daten zur Laufzeit.
+ * Lädt die App-Einstellungen zur Laufzeit.
  *
  * Zuerst gelten im Browser gespeicherte Werte aus den Einstellungen.
  * Fehlen diese, wird `mqtt-config.local.json` und danach `mqtt-config.json` gelesen.
@@ -125,7 +244,7 @@ export function saveMqttSettings(settings: MqttSettings, storage?: StorageLike):
 export async function loadMqttConfig(
 	fetchFn: typeof fetch = fetch,
 	storage?: StorageLike
-): Promise<MqttSettings> {
+): Promise<AppSettings> {
 	const storedSettings = loadStoredMqttSettings(storage);
 	if (storedSettings) {
 		return storedSettings;
@@ -141,5 +260,5 @@ export async function loadMqttConfig(
 		return sharedConfig;
 	}
 
-	return { ...DEFAULT_MQTT_SETTINGS };
+	return parseAppSettings(DEFAULT_APP_SETTINGS);
 }

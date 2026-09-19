@@ -14,22 +14,23 @@
 		validateAlarmDraft
 	} from '$lib/alarm';
 	import { getDefaultDraft } from '$lib/demo-data';
-	import { loadMqttConfig } from '$lib/mqtt-config';
-	import { DEFAULT_MQTT_SETTINGS, publishAlarmMessage } from '$lib/mqtt';
+	import { DEFAULT_APP_SETTINGS, loadMqttConfig } from '$lib/mqtt-config';
+	import { publishAlarmMessage } from '$lib/mqtt';
 	import { loadAlarms, saveAlarms } from '$lib/storage';
+	import { findTopicConnection, getTopicNames } from '$lib/topic-connection';
 	import type {
 		AlarmDraft,
 		AlarmFilter,
 		AlarmItem,
 		AlarmSortKey,
-		MqttSettings,
+		AppSettings,
 		SortDirection,
 		StatusType
 	} from '$lib/types';
 	import { onMount } from 'svelte';
 
 	let alarms = $state<AlarmItem[]>(loadAlarms());
-	let settings = $state<MqttSettings>({ ...DEFAULT_MQTT_SETTINGS });
+	let settings = $state<AppSettings>(parseCopy(DEFAULT_APP_SETTINGS));
 	let draft = $state<AlarmDraft>(getDefaultDraft());
 	let filter = $state<AlarmFilter>('planned');
 	let sortKey = $state<AlarmSortKey>('scheduledAt');
@@ -40,15 +41,56 @@
 	let statusType = $state<StatusType>('idle');
 	let isSending = $state(false);
 
+	const connectionNames = $derived(getTopicNames(settings.topics));
+	const selectedConnection = $derived(findTopicConnection(settings.topics, draft.connection));
+
+	/**
+	 * Kopiert die Standardeinstellungen, ohne Arrays zu teilen.
+	 *
+	 * @param source Vorlage
+	 * @returns unabhängige Kopie
+	 */
+	function parseCopy(source: AppSettings): AppSettings {
+		return {
+			keywords: [...source.keywords],
+			topics: source.topics.map((topic) => ({ ...topic }))
+		};
+	}
+
 	$effect(() => {
 		saveAlarms(alarms);
+	});
+
+	$effect(() => {
+		if (editingId) {
+			return;
+		}
+		if (!connectionNames.includes(draft.connection)) {
+			draft.connection = connectionNames[0] ?? '';
+		}
+		if (!settings.keywords.includes(draft.keyword)) {
+			draft.keyword = settings.keywords[0] ?? '';
+		}
 	});
 
 	onMount(() => {
 		void loadMqttConfig().then((loaded) => {
 			settings = loaded;
+			alignDraftWithSettings();
 		});
 	});
+
+	/**
+	 * Setzt Connection und Stichwort auf gültige Listenwerte, falls sie fehlen.
+	 */
+	function alignDraftWithSettings(): void {
+		if (!connectionNames.includes(draft.connection)) {
+			draft.connection = connectionNames[0] ?? '';
+		}
+		if (!settings.keywords.includes(draft.keyword)) {
+			draft.keyword = settings.keywords[0] ?? '';
+		}
+	}
 
 	/**
 	 * Übernimmt einen Listeneintrag ins Formular zur Bearbeitung.
@@ -57,7 +99,8 @@
 		editingId = alarm.id;
 		draft = {
 			scheduledAt: alarm.scheduledAt,
-			topic: alarm.topic,
+			connection: alarm.connection,
+			location: alarm.location,
 			keyword: alarm.keyword,
 			info: alarm.info
 		};
@@ -70,7 +113,10 @@
 	 */
 	function cancelEdit(): void {
 		editingId = null;
-		draft = getDefaultDraft();
+		draft = getDefaultDraft({
+			connections: connectionNames,
+			keywords: settings.keywords
+		});
 	}
 
 	/**
@@ -127,12 +173,19 @@
 			return;
 		}
 
+		const connection = findTopicConnection(settings.topics, draft.connection);
+		if (!connection) {
+			statusType = 'error';
+			status = 'Bitte wählen Sie eine Connection mit hinterlegter Verbindung.';
+			return;
+		}
+
 		isSending = true;
 		statusType = 'sending';
-		status = 'Verbindung zum Broker wird hergestellt...';
+		status = `Verbindung zu ${connection.brokerHost} wird hergestellt...`;
 
 		try {
-			await publishAlarmMessage(settings, buildMqttPayload(draft));
+			await publishAlarmMessage(connection, buildMqttPayload(draft));
 
 			if (editingId) {
 				alarms = updateAlarm(alarms, editingId, draft).map((item) =>
@@ -158,9 +211,11 @@
 </script>
 
 <div class="mx-auto flex max-w-6xl flex-col gap-5">
-	<AppHeader username={settings.user} onOpenSettings={() => (settingsOpen = true)} />
+	<AppHeader username={selectedConnection?.user ?? ''} onOpenSettings={() => (settingsOpen = true)} />
 	<NewAlarmCard
 		bind:draft
+		connections={connectionNames}
+		keywords={settings.keywords}
 		isEditing={editingId !== null}
 		{isSending}
 		{status}

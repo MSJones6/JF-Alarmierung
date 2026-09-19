@@ -4,14 +4,18 @@
 	 */
 	import Calendar from '@lucide/svelte/icons/calendar';
 	import FileText from '@lucide/svelte/icons/file-text';
+	import MapPin from '@lucide/svelte/icons/map-pin';
 	import Plus from '@lucide/svelte/icons/plus';
+	import Radio from '@lucide/svelte/icons/radio';
 	import Tag from '@lucide/svelte/icons/tag';
 	import Zap from '@lucide/svelte/icons/zap';
-	import { formatGermanDateTime, KEYWORDS, TOPICS } from '$lib/alarm';
+	import { formatGermanDateTime } from '$lib/alarm';
 	import type { AlarmDraft, StatusType } from '$lib/types';
 
 	let {
 		draft = $bindable(),
+		connections,
+		keywords,
 		isEditing,
 		isSending,
 		status,
@@ -21,6 +25,8 @@
 		onCancelEdit
 	}: {
 		draft: AlarmDraft;
+		connections: string[];
+		keywords: string[];
 		isEditing: boolean;
 		isSending: boolean;
 		status: string;
@@ -29,6 +35,20 @@
 		onSchedule: () => void;
 		onCancelEdit: () => void;
 	} = $props();
+
+	/** Connections inkl. des aktuell gewählten Werts, falls er nicht mehr in der Liste steht. */
+	const connectionOptions = $derived(
+		draft.connection && !connections.includes(draft.connection)
+			? [draft.connection, ...connections]
+			: connections
+	);
+
+	/** Stichworte inkl. des aktuell gewählten Werts, falls er nicht mehr in der Liste steht. */
+	const keywordOptions = $derived(
+		draft.keyword && !keywords.includes(draft.keyword)
+			? [draft.keyword, ...keywords]
+			: keywords
+	);
 
 	/**
 	 * Liefert die Farbklassen der Statusmeldung.
@@ -66,6 +86,24 @@
 
 	<div class="space-y-5">
 		<label class="block">
+			<span class="mb-2 block text-sm font-semibold text-slate-600">Connection</span>
+			<div class="relative">
+				<Radio
+					class="pointer-events-none absolute top-1/2 left-4 z-10 -translate-y-1/2 text-slate-400"
+					size={18}
+				/>
+				<select
+					class="w-full appearance-none rounded-xl border-slate-200 py-3 pr-10 pl-12 text-slate-700 shadow-none focus:border-blue-400 focus:ring-blue-400"
+					bind:value={draft.connection}
+				>
+					{#each connectionOptions as connection (connection)}
+						<option value={connection}>{connection}</option>
+					{/each}
+				</select>
+			</div>
+		</label>
+
+		<label class="block">
 			<span class="mb-2 block text-sm font-semibold text-slate-600">Zeit</span>
 			<div class="datetime-wrap">
 				<Calendar
@@ -93,20 +131,17 @@
 
 		<div class="grid gap-5 md:grid-cols-2">
 			<label class="block">
-				<span class="mb-2 block text-sm font-semibold text-slate-600">Topic</span>
+				<span class="mb-2 block text-sm font-semibold text-slate-600">Ort</span>
 				<div class="relative">
-					<Tag
+					<MapPin
 						class="pointer-events-none absolute top-1/2 left-4 z-10 -translate-y-1/2 text-slate-400"
 						size={18}
 					/>
-					<select
-						class="w-full appearance-none rounded-xl border-slate-200 py-3 pr-10 pl-12 text-slate-700 shadow-none focus:border-blue-400 focus:ring-blue-400"
-						bind:value={draft.topic}
-					>
-						{#each TOPICS as topic (topic)}
-							<option value={topic}>{topic}</option>
-						{/each}
-					</select>
+					<input
+						class="w-full rounded-xl border-slate-200 py-3 pr-4 pl-12 text-slate-700 shadow-none focus:border-blue-400 focus:ring-blue-400"
+						placeholder="Einsatzort"
+						bind:value={draft.location}
+					/>
 				</div>
 			</label>
 
@@ -121,7 +156,7 @@
 						class="w-full appearance-none rounded-xl border-slate-200 py-3 pr-10 pl-12 text-slate-700 shadow-none focus:border-blue-400 focus:ring-blue-400"
 						bind:value={draft.keyword}
 					>
-						{#each KEYWORDS as keyword (keyword)}
+						{#each keywordOptions as keyword (keyword)}
 							<option value={keyword}>{keyword}</option>
 						{/each}
 					</select>
@@ -155,7 +190,7 @@
 			Direkt alarmieren
 		</button>
 		<button
-			class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand py-3.5 font-semibold text-white shadow-sm transition hover:bg-brand-hover"
+			class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand py-3.5 font-semibold text-white hover:bg-brand-hover"
 			type="button"
 			onclick={onSchedule}
 		>

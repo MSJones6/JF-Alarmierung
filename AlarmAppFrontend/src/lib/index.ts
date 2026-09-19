@@ -3,5 +3,7 @@ export * from './alarm';
 export * from './demo-data';
 export * from './mqtt';
 export * from './mqtt-config';
+export * from './option-list';
 export * from './storage';
+export * from './topic-connection';
 export * from './types';

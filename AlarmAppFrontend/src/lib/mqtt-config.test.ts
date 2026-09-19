@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
+import { KEYWORDS } from './alarm';
 import { DEFAULT_MQTT_SETTINGS } from './mqtt';
 import {
+	DEFAULT_APP_SETTINGS,
 	loadMqttConfig,
 	loadStoredMqttSettings,
 	MQTT_CONFIG_URL,
 	MQTT_LOCAL_CONFIG_URL,
 	MQTT_SETTINGS_STORAGE_KEY,
+	parseAppSettings,
 	parseMqttConfig,
 	saveMqttSettings
 } from './mqtt-config';
@@ -56,18 +59,103 @@ describe('parseMqttConfig', () => {
 	});
 });
 
+describe('parseAppSettings', () => {
+	it('legt für jedes Topic eine eigene Verbindung an', () => {
+		const parsed = parseAppSettings({
+			keywords: ['Brand'],
+			topics: [
+				{
+					name: 'Topic 1',
+					brokerHost: 'host-1',
+					user: 'user-1',
+					password: 'pass-1',
+					mqttTopic: 'JF/One'
+				},
+				{
+					name: 'Topic 2',
+					brokerHost: 'host-2',
+					user: 'user-2',
+					password: 'pass-2',
+					mqttTopic: 'JF/Two'
+				}
+			]
+		});
+
+		expect(parsed.keywords).toEqual(['Brand']);
+		expect(parsed.topics).toEqual([
+			expect.objectContaining({
+				name: 'Topic 1',
+				brokerHost: 'host-1',
+				user: 'user-1',
+				password: 'pass-1',
+				mqttTopic: 'JF/One'
+			}),
+			expect.objectContaining({
+				name: 'Topic 2',
+				brokerHost: 'host-2',
+				user: 'user-2',
+				password: 'pass-2',
+				mqttTopic: 'JF/Two'
+			})
+		]);
+	});
+
+	it('ergänzt alte Topic-Namen mit den globalen Broker-Daten', () => {
+		const parsed = parseAppSettings({
+			brokerHost: 'legacy-host',
+			user: 'legacy-user',
+			password: 'legacy-pass',
+			mqttTopic: 'JF/Legacy',
+			topics: ['Wache 1', 'Wache 2']
+		});
+
+		expect(parsed.topics).toEqual([
+			expect.objectContaining({
+				name: 'Wache 1',
+				brokerHost: 'legacy-host',
+				user: 'legacy-user',
+				mqttTopic: 'JF/Legacy'
+			}),
+			expect.objectContaining({
+				name: 'Wache 2',
+				brokerHost: 'legacy-host',
+				user: 'legacy-user',
+				mqttTopic: 'JF/Legacy'
+			})
+		]);
+	});
+
+	it('erzeugt ein Standard-Topic, wenn nur Broker-Daten vorhanden sind', () => {
+		expect(parseAppSettings({ brokerHost: 'local' }).topics).toEqual([
+			expect.objectContaining({
+				name: 'Standard',
+				brokerHost: 'local'
+			})
+		]);
+	});
+});
+
 describe('gespeicherte MQTT-Einstellungen', () => {
-	it('rundet geänderte Broker-Daten über den Storage', () => {
+	it('rundet Topic-Verbindungen und Zugangsdaten über den Storage', () => {
 		const storage = new MemoryStorage();
-		const settings = {
-			...DEFAULT_MQTT_SETTINGS,
-			brokerHost: 'saved-broker',
-			mqttTopic: 'JF/Saved'
-		};
+		const settings = parseAppSettings({
+			keywords: ['Brandmelder'],
+			topics: [
+				{
+					id: 'wache',
+					name: 'Gerätehaus',
+					brokerHost: 'saved-broker',
+					user: 'saved-user',
+					password: 'saved-pass',
+					mqttTopic: 'JF/Saved'
+				}
+			]
+		});
 
 		saveMqttSettings(settings, storage);
 
-		expect(storage.getItem(MQTT_SETTINGS_STORAGE_KEY)).toContain('saved-broker');
+		expect(storage.getItem(MQTT_SETTINGS_STORAGE_KEY)).toContain('saved-user');
+		expect(storage.getItem(MQTT_SETTINGS_STORAGE_KEY)).toContain('Gerätehaus');
 		expect(loadStoredMqttSettings(storage)).toEqual(settings);
 	});
 
@@ -86,11 +174,10 @@ describe('loadMqttConfig', () => {
 	it('bevorzugt im Browser gespeicherte Einstellungen', async () => {
 		const storage = new MemoryStorage();
 		saveMqttSettings(
-			{
-				...DEFAULT_MQTT_SETTINGS,
-				brokerHost: 'ui-broker',
-				mqttTopic: 'JF/Ui'
-			},
+			parseAppSettings({
+				keywords: ['Eigene Meldung'],
+				topics: [{ name: 'Ui Topic', brokerHost: 'ui-broker', mqttTopic: 'JF/Ui' }]
+			}),
 			storage
 		);
 		const fetchFn = vi.fn(async () => {
@@ -99,8 +186,8 @@ describe('loadMqttConfig', () => {
 
 		await expect(loadMqttConfig(fetchFn as unknown as typeof fetch, storage)).resolves.toMatchObject(
 			{
-				brokerHost: 'ui-broker',
-				mqttTopic: 'JF/Ui'
+				keywords: ['Eigene Meldung'],
+				topics: [expect.objectContaining({ brokerHost: 'ui-broker', mqttTopic: 'JF/Ui' })]
 			}
 		);
 		expect(fetchFn).not.toHaveBeenCalled();
@@ -120,8 +207,8 @@ describe('loadMqttConfig', () => {
 		await expect(
 			loadMqttConfig(fetchFn as unknown as typeof fetch, new MemoryStorage())
 		).resolves.toMatchObject({
-			brokerHost: 'local-broker',
-			mqttTopic: 'JF/Alarm'
+			keywords: KEYWORDS,
+			topics: [expect.objectContaining({ brokerHost: 'local-broker', name: 'Standard' })]
 		});
 	});
 
@@ -142,8 +229,7 @@ describe('loadMqttConfig', () => {
 		await expect(
 			loadMqttConfig(fetchFn as unknown as typeof fetch, new MemoryStorage())
 		).resolves.toMatchObject({
-			brokerHost: 'shared-broker',
-			mqttTopic: 'JF/Shared'
+			topics: [expect.objectContaining({ brokerHost: 'shared-broker', mqttTopic: 'JF/Shared' })]
 		});
 	});
 
@@ -154,6 +240,6 @@ describe('loadMqttConfig', () => {
 
 		await expect(
 			loadMqttConfig(fetchFn as unknown as typeof fetch, new MemoryStorage())
-		).resolves.toEqual(DEFAULT_MQTT_SETTINGS);
+		).resolves.toEqual(parseAppSettings(DEFAULT_APP_SETTINGS));
 	});
 });

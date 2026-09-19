@@ -37,14 +37,53 @@ export function loadAlarms(storage?: StorageLike): AlarmItem[] {
 	}
 
 	try {
-		const parsed = JSON.parse(raw) as AlarmItem[];
+		const parsed = JSON.parse(raw) as unknown;
 		if (!Array.isArray(parsed)) {
 			return [];
 		}
-		return parsed.filter((alarm) => !alarm.id.startsWith('demo-'));
+		return parsed
+			.map(normalizeAlarm)
+			.filter((alarm): alarm is AlarmItem => alarm !== null)
+			.filter((alarm) => !alarm.id.startsWith('demo-'));
 	} catch {
 		return [];
 	}
+}
+
+/**
+ * Ergänzt ältere Einträge um Connection und Ort.
+ *
+ * @param raw gespeicherter Listeneintrag
+ * @returns normalisierte Alarmierung oder `null`
+ */
+function normalizeAlarm(raw: unknown): AlarmItem | null {
+	if (raw === null || typeof raw !== 'object') {
+		return null;
+	}
+	const data = raw as Record<string, unknown>;
+	if (typeof data.id !== 'string' || data.id.length === 0) {
+		return null;
+	}
+
+	const legacyTopic = typeof data.topic === 'string' ? data.topic : '';
+	const connection =
+		typeof data.connection === 'string' && data.connection.trim().length > 0
+			? data.connection
+			: legacyTopic;
+	const location =
+		typeof data.location === 'string' && data.location.trim().length > 0
+			? data.location
+			: legacyTopic;
+
+	return {
+		id: data.id,
+		scheduledAt: typeof data.scheduledAt === 'string' ? data.scheduledAt : '',
+		connection,
+		location,
+		keyword: typeof data.keyword === 'string' ? data.keyword : '',
+		info: typeof data.info === 'string' ? data.info : '',
+		status: data.status === 'sent' ? 'sent' : 'planned'
+	};
 }
 
 /**

@@ -1,10 +1,10 @@
 import type { AlarmDraft, AlarmFilter, AlarmItem, AlarmSortKey, SortDirection } from './types';
 
-/** Auswählbare Topics (Einsatzorte) in der Oberfläche. */
-export const TOPICS = ['Gebäude 3', 'IT-Systeme', 'Allgemein', 'System', 'Eingang'] as const;
+/** Standard-Einsatzorte für ältere Formularwerte. */
+export const TOPICS = ['Gebäude 3', 'IT-Systeme', 'Allgemein', 'System', 'Eingang'];
 
-/** Auswählbare Alarmstichworte in der Oberfläche. */
-export const KEYWORDS = ['Feueralarm', 'Warnung', 'Info', 'Test', 'Sicherheit'] as const;
+/** Standard-Alarmstichworte für das Dropdown. */
+export const KEYWORDS = ['Feueralarm', 'Warnung', 'Info', 'Test', 'Sicherheit'];
 
 /**
  * Liefert die CSS-Klassen für die farbige Stichwort-Plakette.
@@ -51,7 +51,7 @@ export function formatGermanDateTime(isoLocal: string): string {
  * @returns serialisierte Alarmnachricht
  */
 export function buildMqttPayload(draft: AlarmDraft): string {
-	return `${draft.keyword}###${draft.topic}###${draft.info}`;
+	return `${draft.keyword}###${draft.location}###${draft.info}`;
 }
 
 /**
@@ -61,11 +61,14 @@ export function buildMqttPayload(draft: AlarmDraft): string {
  * @returns Fehlermeldung oder `null`, wenn die Eingabe gültig ist
  */
 export function validateAlarmDraft(draft: AlarmDraft): string | null {
+	if (!draft.connection.trim()) {
+		return 'Bitte wählen Sie eine Connection.';
+	}
 	if (!draft.scheduledAt.trim()) {
 		return 'Bitte wählen Sie einen Zeitpunkt.';
 	}
-	if (!draft.topic.trim()) {
-		return 'Bitte wählen Sie ein Topic.';
+	if (!draft.location.trim()) {
+		return 'Bitte geben Sie einen Ort ein.';
 	}
 	if (!draft.keyword.trim()) {
 		return 'Bitte wählen Sie ein Alarmstichwort.';
@@ -89,7 +92,8 @@ export function createAlarm(
 	return {
 		id: idFactory(),
 		scheduledAt: draft.scheduledAt,
-		topic: draft.topic,
+		connection: draft.connection,
+		location: draft.location.trim(),
 		keyword: draft.keyword,
 		info: draft.info.trim(),
 		status
@@ -110,7 +114,8 @@ export function updateAlarm(alarms: AlarmItem[], id: string, draft: AlarmDraft):
 			? {
 					...alarm,
 					scheduledAt: draft.scheduledAt,
-					topic: draft.topic,
+					connection: draft.connection,
+					location: draft.location.trim(),
 					keyword: draft.keyword,
 					info: draft.info.trim()
 				}

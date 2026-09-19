@@ -36,7 +36,8 @@ describe('Storage', () => {
 			{
 				id: 'user-1',
 				scheduledAt: '2025-04-24T14:30:15',
-				topic: 'Gebäude 3',
+				connection: 'Standard',
+				location: 'Gebäude 3',
 				keyword: 'Feueralarm',
 				info: 'Rauchentwicklung',
 				status: 'planned' as const
@@ -57,5 +58,34 @@ describe('Storage', () => {
 		const storage = new MemoryStorage();
 		storage.setItem(ALARMS_STORAGE_KEY, '{ungueltig');
 		expect(loadAlarms(storage)).toEqual([]);
+	});
+
+	it('übernimmt den alten Topic-Namen als Connection und Ort', () => {
+		const storage = new MemoryStorage();
+		storage.setItem(
+			ALARMS_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: 'legacy-1',
+					scheduledAt: '2025-04-24T14:30:15',
+					topic: 'Gebäude 3',
+					keyword: 'Feueralarm',
+					info: 'Rauchentwicklung',
+					status: 'planned'
+				}
+			])
+		);
+
+		expect(loadAlarms(storage)).toEqual([
+			{
+				id: 'legacy-1',
+				scheduledAt: '2025-04-24T14:30:15',
+				connection: 'Gebäude 3',
+				location: 'Gebäude 3',
+				keyword: 'Feueralarm',
+				info: 'Rauchentwicklung',
+				status: 'planned'
+			}
+		]);
 	});
 });

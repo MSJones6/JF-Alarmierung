@@ -136,9 +136,9 @@
 						<button
 							class="inline-flex items-center gap-1"
 							type="button"
-							onclick={() => setSort('topic')}
+							onclick={() => setSort('location')}
 						>
-							Topic
+							Ort
 							<ChevronsUpDown size={14} />
 						</button>
 					</th>
@@ -173,7 +173,7 @@
 						<td class="bg-slate-50/80 px-3 py-2.5">
 							<KeywordBadge keyword={alarm.keyword} />
 						</td>
-						<td class="bg-slate-50/80 px-3 py-2.5 font-medium text-slate-700">{alarm.topic}</td>
+						<td class="bg-slate-50/80 px-3 py-2.5 font-medium text-slate-700">{alarm.location}</td>
 						<td class="bg-slate-50/80 px-3 py-2.5 text-slate-500">{alarm.info}</td>
 						<td class="rounded-r-2xl bg-slate-50/80 px-3 py-2.5">
 							<div class="flex justify-end gap-2">
