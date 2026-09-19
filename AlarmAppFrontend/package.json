@@ -40,7 +40,6 @@
 		"vitest": "^4.1.8"
 	},
 	"dependencies": {
-		"@lucide/svelte": "^1.47.0",
-		"mqtt": "^5.16.0"
+		"@lucide/svelte": "^1.47.0"
 	}
 }

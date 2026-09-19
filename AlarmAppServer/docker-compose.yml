@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mosquitto:
     image: eclipse-mosquitto:2
@@ -12,4 +10,68 @@ services:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
+    networks:
+      - msj-jf-alarm-net
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: alarm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: alarmapp
+      POSTGRES_USER: alarm
+      POSTGRES_PASSWORD: alarm
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alarm -d alarmapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - msj-jf-alarm-net
+
+  adminer:
+    image: adminer:4
+    container_name: alarm-adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080"   # Adminer (Web-UI für die Datenbank)
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - msj-jf-alarm-net
+
+  alarm-api:
+    build:
+      context: ./alarm-api
+    image: jf-alarmierung/alarm-api:1.0.0
+    container_name: alarm-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/alarmapp
+      SPRING_DATASOURCE_USERNAME: alarm
+      SPRING_DATASOURCE_PASSWORD: alarm
+      ALARM_CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      ALARM_MQTT_HOST_OVERRIDE: mosquitto
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    networks:
+      - msj-jf-alarm-net
+
+volumes:
+  postgres_data:
+
+# Eigenes Docker-Netzwerk für alle Dienste der JF-Alarmierung.
+networks:
+  msj-jf-alarm-net:
+    name: MSJ-JF-Alarm-Net
+    driver: bridge

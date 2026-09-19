@@ -1,6 +1,7 @@
 <script lang="ts">
 	/**
 	 * Tabelle der geplanten und bereits ausgelösten Alarmierungen.
+	 * Bearbeiten und Löschen sind ohne erreichbares Backend deaktiviert.
 	 */
 	import Calendar from '@lucide/svelte/icons/calendar';
 	import Check from '@lucide/svelte/icons/check';
@@ -12,20 +13,24 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import { filterAlarms, formatGermanDateTime, getFilterCountLabel, sortAlarms } from '$lib/alarm';
 	import KeywordBadge from '$lib/components/KeywordBadge.svelte';
-	import type { AlarmFilter, AlarmItem, AlarmSortKey, SortDirection } from '$lib/types';
+	import type { AlarmFilter, AlarmItem, AlarmSortKey, KeywordOption, SortDirection } from '$lib/types';
 
 	let {
 		alarms,
+		keywords = [],
 		filter = $bindable(),
 		sortKey = $bindable(),
 		sortDirection = $bindable(),
+		backendOnline = true,
 		onEdit,
 		onDelete
 	}: {
 		alarms: AlarmItem[];
+		keywords?: KeywordOption[];
 		filter: AlarmFilter;
 		sortKey: AlarmSortKey;
 		sortDirection: SortDirection;
+		backendOnline?: boolean;
 		onEdit: (alarm: AlarmItem) => void;
 		onDelete: (alarm: AlarmItem) => void;
 	} = $props();
@@ -136,9 +141,9 @@
 						<button
 							class="inline-flex items-center gap-1"
 							type="button"
-							onclick={() => setSort('topic')}
+							onclick={() => setSort('location')}
 						>
-							Topic
+							Ort
 							<ChevronsUpDown size={14} />
 						</button>
 					</th>
@@ -171,25 +176,35 @@
 							</div>
 						</td>
 						<td class="bg-slate-50/80 px-3 py-2.5">
-							<KeywordBadge keyword={alarm.keyword} />
+							<KeywordBadge keyword={alarm.keyword} {keywords} />
 						</td>
-						<td class="bg-slate-50/80 px-3 py-2.5 font-medium text-slate-700">{alarm.topic}</td>
+						<td class="bg-slate-50/80 px-3 py-2.5 font-medium text-slate-700">{alarm.location}</td>
 						<td class="bg-slate-50/80 px-3 py-2.5 text-slate-500">{alarm.info}</td>
 						<td class="rounded-r-2xl bg-slate-50/80 px-3 py-2.5">
 							<div class="flex justify-end gap-2">
 								<button
-									class="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-sky-500 transition hover:bg-sky-100"
+									class="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-sky-500 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
 									type="button"
 									aria-label="Alarmierung bearbeiten"
-									onclick={() => onEdit(alarm)}
+									disabled={!backendOnline}
+									onclick={() => {
+										if (backendOnline) {
+											onEdit(alarm);
+										}
+									}}
 								>
 									<Pencil size={16} />
 								</button>
 								<button
-									class="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50 text-rose-500 transition hover:bg-rose-100"
+									class="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50 text-rose-500 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
 									type="button"
 									aria-label="Alarmierung löschen"
-									onclick={() => onDelete(alarm)}
+									disabled={!backendOnline}
+									onclick={() => {
+										if (backendOnline) {
+											onDelete(alarm);
+										}
+									}}
 								>
 									<Trash2 size={16} />
 								</button>

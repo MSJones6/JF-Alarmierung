@@ -9,7 +9,7 @@ export type AlarmStatus = 'planned' | 'sent';
 export type AlarmFilter = 'planned' | 'sent' | 'all';
 
 /** Sortierbare Spalten der Alarmierungstabelle. */
-export type AlarmSortKey = 'scheduledAt' | 'keyword' | 'topic' | 'info';
+export type AlarmSortKey = 'scheduledAt' | 'keyword' | 'location' | 'info';
 
 /** Sortierrichtung einer Tabellenspalte. */
 export type SortDirection = 'asc' | 'desc';
@@ -18,7 +18,8 @@ export type SortDirection = 'asc' | 'desc';
 export type AlarmItem = {
 	id: string;
 	scheduledAt: string;
-	topic: string;
+	connection: string;
+	location: string;
 	keyword: string;
 	info: string;
 	status: AlarmStatus;
@@ -27,7 +28,8 @@ export type AlarmItem = {
 /** Eingabewerte des Formulars „Neue Alarmierung“. */
 export type AlarmDraft = {
 	scheduledAt: string;
-	topic: string;
+	connection: string;
+	location: string;
 	keyword: string;
 	info: string;
 };
@@ -43,11 +45,26 @@ export type MqttSettings = {
 	mqttTopic: string;
 };
 
+/** Eine auswählbare Connection mit eigener Broker-Verbindung. */
+export type TopicConnection = MqttSettings & {
+	id: string;
+	name: string;
+};
+
+/** Auswählbares Alarmstichwort mit Badge-Farbe. */
+export type KeywordOption = {
+	name: string;
+	color: string;
+};
+
+/** App-Einstellungen: Stichworte und Connections. */
+export type AppSettings = {
+	keywords: KeywordOption[];
+	topics: TopicConnection[];
+};
+
 /** Zustände der Statusanzeige nach einem Versand. */
 export type StatusType = 'idle' | 'sending' | 'success' | 'error';
 
-/** Minimale Storage-Schnittstelle für Tests und localStorage. */
-export type StorageLike = {
-	getItem(key: string): string | null;
-	setItem(key: string, value: string): void;
-};
+/** Erreichbarkeit der Alarm-API aus Sicht der Oberfläche. */
+export type BackendConnectionStatus = 'checking' | 'online' | 'offline';

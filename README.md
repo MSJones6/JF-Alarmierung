@@ -126,21 +126,17 @@ Die Mosquitto-Konfigurationsdatei (`mosquitto/config/mosquitto.conf`) enthält t
 
 ### Beschreibung
 
-SvelteKit-Webanwendung zum Senden von Alarmmeldungen über MQTT mittels Websockets.
+SvelteKit-Webanwendung zum Planen und Auslösen von Alarmmeldungen über die REST-API. MQTT versendet nur der Server.
 
 ### Konfiguration
 
-Die Broker-Daten stehen in `AlarmAppFrontend/static/mqtt-config.json` und werden zur Laufzeit gelesen (kein Rebuild). Optionale lokale Überschreibungen liegen in `mqtt-config.local.json` (Vorlage: `mqtt-config.local.json.example`).
+Verbindungen, Alarmstichworte und Alarme kommen ausschließlich von der API (`/api/connections`, `/api/keywords`, `/api/alarms`). Es gibt keine lokalen JSON-Fallbacks für Broker-Daten.
+
+Die optionale Datei `AlarmAppFrontend/static/api-config.json` enthält nur die API-Basis-URL (kein Rebuild nötig). Fehlt sie, nutzt das Frontend denselben Ursprung bzw. den Vite-Proxy `/api`.
 
 | Einstellung | Standardwert | Beschreibung |
 |-------------|---------------|--------------|
-| `brokerHost` | `localhost` | Hostname des MQTT-Brokers |
-| `brokerPort` | `9001` | WebSocket-Port |
-| `brokerPath` | `/mqtt` | WebSocket-Pfad |
-| `useSsl` | `false` | `wss://` statt `ws://` |
-| `mqttTopic` | `JF/Alarm` | MQTT-Topic für Alarmmeldungen |
-| `user` | `alarm` | Optionaler MQTT-Benutzername |
-| `password` | `alarm` | Optionales MQTT-Passwort |
+| `apiBaseUrl` | `http://127.0.0.1:8080` | Basis-URL der Alarm-API |
 
 ### Ausführungsbefehle
 

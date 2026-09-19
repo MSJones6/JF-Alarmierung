@@ -3,33 +3,42 @@
 	 * Startseite der Alarmierungsoberfläche.
 	 */
 	import AppHeader from '$lib/components/AppHeader.svelte';
+	import BackendOfflineBanner from '$lib/components/BackendOfflineBanner.svelte';
 	import NewAlarmCard from '$lib/components/NewAlarmCard.svelte';
 	import PlannedAlarmsCard from '$lib/components/PlannedAlarmsCard.svelte';
 	import SettingsDialog from '$lib/components/SettingsDialog.svelte';
 	import {
-		buildMqttPayload,
-		createAlarm,
-		deleteAlarm,
-		updateAlarm,
+		getKeywordNames,
 		validateAlarmDraft
 	} from '$lib/alarm';
+	import {
+		createRemoteAlarm,
+		deleteRemoteAlarm,
+		fetchAlarms,
+		fetchApiHealth,
+		fetchAppSettings,
+		initApiClient,
+		saveAppSettings,
+		updateRemoteAlarm
+	} from '$lib/api';
+	import { subscribeAlarmStream } from '$lib/alarm-stream';
+	import { startBackendHealthPolling } from '$lib/backend-status';
 	import { getDefaultDraft } from '$lib/demo-data';
-	import { loadMqttConfig } from '$lib/mqtt-config';
-	import { DEFAULT_MQTT_SETTINGS, publishAlarmMessage } from '$lib/mqtt';
-	import { loadAlarms, saveAlarms } from '$lib/storage';
+	import { findTopicConnection, getTopicNames } from '$lib/topic-connection';
 	import type {
 		AlarmDraft,
 		AlarmFilter,
 		AlarmItem,
 		AlarmSortKey,
-		MqttSettings,
+		AppSettings,
+		BackendConnectionStatus,
 		SortDirection,
 		StatusType
 	} from '$lib/types';
 	import { onMount } from 'svelte';
 
-	let alarms = $state<AlarmItem[]>(loadAlarms());
-	let settings = $state<MqttSettings>({ ...DEFAULT_MQTT_SETTINGS });
+	let alarms = $state<AlarmItem[]>([]);
+	let settings = $state<AppSettings>({ keywords: [], topics: [] });
 	let draft = $state<AlarmDraft>(getDefaultDraft());
 	let filter = $state<AlarmFilter>('planned');
 	let sortKey = $state<AlarmSortKey>('scheduledAt');
@@ -39,16 +48,131 @@
 	let status = $state('');
 	let statusType = $state<StatusType>('idle');
 	let isSending = $state(false);
+	let backendStatus = $state<BackendConnectionStatus>('checking');
+
+	const connectionNames = $derived(getTopicNames(settings.topics));
+	const keywordNames = $derived(getKeywordNames(settings.keywords));
+	const selectedConnection = $derived(findTopicConnection(settings.topics, draft.connection));
+	const backendOnline = $derived(backendStatus === 'online');
 
 	$effect(() => {
-		saveAlarms(alarms);
+		if (editingId) {
+			return;
+		}
+		if (!connectionNames.includes(draft.connection)) {
+			draft.connection = connectionNames[0] ?? '';
+		}
+		if (!keywordNames.includes(draft.keyword)) {
+			draft.keyword = keywordNames[0] ?? '';
+		}
 	});
 
+	// Prüft die API regelmäßig und lädt Daten nur bei erreichbarem Backend.
 	onMount(() => {
-		void loadMqttConfig().then((loaded) => {
-			settings = loaded;
-		});
+		let closed = false;
+		let closeStream = () => {};
+		let stopPolling = () => {};
+
+		/**
+		 * Abonniert den Alarm-Stream neu.
+		 */
+		function connectStream(): void {
+			closeStream();
+			closeStream = subscribeAlarmStream((next) => {
+				alarms = next;
+			});
+		}
+
+		/**
+		 * Lädt Einstellungen und Alarme vom Server und öffnet den Stream.
+		 */
+		async function refreshFromApi(): Promise<void> {
+			try {
+				const nextSettings = await fetchAppSettings();
+				if (closed) {
+					return;
+				}
+				settings = nextSettings;
+				alignDraftWithSettings();
+			} catch {
+				if (!closed) {
+					backendStatus = 'offline';
+				}
+			}
+
+			try {
+				const nextAlarms = await fetchAlarms();
+				if (closed) {
+					return;
+				}
+				alarms = nextAlarms;
+			} catch {
+				if (!closed) {
+					alarms = [];
+					backendStatus = 'offline';
+				}
+			}
+
+			if (!closed && backendStatus === 'online') {
+				connectStream();
+			}
+		}
+
+		/**
+		 * Übernimmt einen neuen API-Status und lädt Daten beim Wechsel auf online.
+		 *
+		 * @param next geprüfter Zustand
+		 */
+		function applyBackendStatus(next: BackendConnectionStatus): void {
+			const becameOnline = next === 'online' && backendStatus !== 'online';
+			backendStatus = next;
+			if (becameOnline) {
+				void refreshFromApi();
+			}
+		}
+
+		void (async () => {
+			await initApiClient();
+			if (closed) {
+				return;
+			}
+			stopPolling = startBackendHealthPolling({
+				check: fetchApiHealth,
+				onStatus: applyBackendStatus
+			});
+		})();
+
+		return () => {
+			closed = true;
+			stopPolling();
+			closeStream();
+		};
 	});
+
+	/**
+	 * Setzt Connection und Stichwort auf gültige Listenwerte, falls sie fehlen.
+	 */
+	function alignDraftWithSettings(): void {
+		if (!connectionNames.includes(draft.connection)) {
+			draft.connection = connectionNames[0] ?? '';
+		}
+		if (!keywordNames.includes(draft.keyword)) {
+			draft.keyword = keywordNames[0] ?? '';
+		}
+	}
+
+	/**
+	 * Speichert Connections und Alarmstichworte über die REST-API.
+	 *
+	 * @param next bearbeitete Einstellungen
+	 */
+	async function persistSettings(next: AppSettings): Promise<void> {
+		if (!backendOnline) {
+			return;
+		}
+		settings = await saveAppSettings(next);
+		alignDraftWithSettings();
+	}
 
 	/**
 	 * Übernimmt einen Listeneintrag ins Formular zur Bearbeitung.
@@ -57,7 +181,8 @@
 		editingId = alarm.id;
 		draft = {
 			scheduledAt: alarm.scheduledAt,
-			topic: alarm.topic,
+			connection: alarm.connection,
+			location: alarm.location,
 			keyword: alarm.keyword,
 			info: alarm.info
 		};
@@ -70,27 +195,41 @@
 	 */
 	function cancelEdit(): void {
 		editingId = null;
-		draft = getDefaultDraft();
+		draft = getDefaultDraft({
+			connections: connectionNames,
+			keywords: keywordNames
+		});
 	}
 
 	/**
-	 * Löscht eine Alarmierung nach Bestätigung.
+	 * Löscht eine Alarmierung nach Bestätigung auf dem Server.
 	 */
-	function removeAlarm(alarm: AlarmItem): void {
+	async function removeAlarm(alarm: AlarmItem): Promise<void> {
+		if (!backendOnline) {
+			return;
+		}
 		const confirmed = confirm(`Alarmierung „${alarm.keyword}“ wirklich löschen?`);
 		if (!confirmed) {
 			return;
 		}
-		alarms = deleteAlarm(alarms, alarm.id);
-		if (editingId === alarm.id) {
-			cancelEdit();
+		try {
+			await deleteRemoteAlarm(alarm.id);
+			if (editingId === alarm.id) {
+				cancelEdit();
+			}
+		} catch (error) {
+			statusType = 'error';
+			status = error instanceof Error ? error.message : 'Alarmierung konnte nicht gelöscht werden.';
 		}
 	}
 
 	/**
-	 * Plant eine neue Alarmierung oder speichert Änderungen.
+	 * Plant eine neue Alarmierung oder speichert Änderungen auf dem Server.
 	 */
-	function scheduleAlarm(): void {
+	async function scheduleAlarm(): Promise<void> {
+		if (!backendOnline) {
+			return;
+		}
 		const error = validateAlarmDraft(draft);
 		if (error) {
 			statusType = 'error';
@@ -98,25 +237,31 @@
 			return;
 		}
 
-		if (editingId) {
-			alarms = updateAlarm(alarms, editingId, draft);
-			statusType = 'success';
-			status = 'Alarmierung wurde aktualisiert.';
-			editingId = null;
-			return;
-		}
+		try {
+			if (editingId) {
+				await updateRemoteAlarm(editingId, draft, 'planned');
+				statusType = 'success';
+				status = 'Alarmierung wurde aktualisiert.';
+				editingId = null;
+				return;
+			}
 
-		alarms = [...alarms, createAlarm(draft, 'planned')];
-		statusType = 'success';
-		status = 'Alarmierung wurde geplant.';
+			await createRemoteAlarm(draft, 'planned');
+			statusType = 'success';
+			status = 'Alarmierung wurde geplant.';
+		} catch (saveError) {
+			statusType = 'error';
+			status =
+				saveError instanceof Error ? saveError.message : 'Alarmierung konnte nicht gespeichert werden.';
+		}
 	}
 
 	/**
-	 * Sendet die Alarmierung sofort per MQTT und merkt sie als bereits alarmiert.
+	 * Lässt den Server die Alarmierung sofort per MQTT auslösen und als gesendet speichern.
 	 * Ein zweiter Klick während des laufenden Versands wird ignoriert.
 	 */
 	async function sendAlarm(): Promise<void> {
-		if (isSending) {
+		if (isSending || !backendOnline) {
 			return;
 		}
 
@@ -129,18 +274,14 @@
 
 		isSending = true;
 		statusType = 'sending';
-		status = 'Verbindung zum Broker wird hergestellt...';
+		status = 'Alarmierung wird über den Server gesendet...';
 
 		try {
-			await publishAlarmMessage(settings, buildMqttPayload(draft));
-
 			if (editingId) {
-				alarms = updateAlarm(alarms, editingId, draft).map((item) =>
-					item.id === editingId ? { ...item, status: 'sent' as const } : item
-				);
+				await updateRemoteAlarm(editingId, draft, 'sent');
 				editingId = null;
 			} else {
-				alarms = [...alarms, createAlarm(draft, 'sent')];
+				await createRemoteAlarm(draft, 'sent');
 			}
 
 			statusType = 'success';
@@ -158,11 +299,19 @@
 </script>
 
 <div class="mx-auto flex max-w-6xl flex-col gap-5">
-	<AppHeader username={settings.user} onOpenSettings={() => (settingsOpen = true)} />
+	<AppHeader
+		username={selectedConnection?.user ?? ''}
+		{backendStatus}
+		onOpenSettings={() => (settingsOpen = true)}
+	/>
+	<BackendOfflineBanner visible={backendStatus === 'offline'} />
 	<NewAlarmCard
 		bind:draft
+		connections={connectionNames}
+		keywords={keywordNames}
 		isEditing={editingId !== null}
 		{isSending}
+		{backendOnline}
 		{status}
 		{statusType}
 		onDirectAlarm={sendAlarm}
@@ -171,12 +320,14 @@
 	/>
 	<PlannedAlarmsCard
 		{alarms}
+		keywords={settings.keywords}
 		bind:filter
 		bind:sortKey
 		bind:sortDirection
+		{backendOnline}
 		onEdit={editAlarm}
 		onDelete={removeAlarm}
 	/>
 </div>
 
-<SettingsDialog bind:open={settingsOpen} bind:settings />
+<SettingsDialog bind:open={settingsOpen} bind:settings onSave={persistSettings} />

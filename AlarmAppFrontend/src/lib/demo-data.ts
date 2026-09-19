@@ -1,3 +1,4 @@
+import { toDateTimeLocalValue } from './alarm';
 import type { AlarmItem } from './types';
 
 /**
@@ -10,7 +11,8 @@ export function getDemoAlarms(): AlarmItem[] {
 		{
 			id: 'demo-1',
 			scheduledAt: '2025-04-24T14:30:15',
-			topic: 'Gebäude 3',
+			connection: 'Standard',
+			location: 'Gebäude 3',
 			keyword: 'Feueralarm',
 			info: 'Rauchentwicklung im Serverraum. Bitte umgehend prüfen!',
 			status: 'planned'
@@ -18,7 +20,8 @@ export function getDemoAlarms(): AlarmItem[] {
 		{
 			id: 'demo-2',
 			scheduledAt: '2025-04-25T09:00:00',
-			topic: 'IT-Systeme',
+			connection: 'Standard',
+			location: 'IT-Systeme',
 			keyword: 'Warnung',
 			info: 'Geplante Wartung der Datenbank.',
 			status: 'planned'
@@ -26,7 +29,8 @@ export function getDemoAlarms(): AlarmItem[] {
 		{
 			id: 'demo-3',
 			scheduledAt: '2025-04-26T16:15:30',
-			topic: 'Allgemein',
+			connection: 'Standard',
+			location: 'Allgemein',
 			keyword: 'Info',
 			info: 'Quartalsmeeting im Konferenzraum.',
 			status: 'planned'
@@ -34,7 +38,8 @@ export function getDemoAlarms(): AlarmItem[] {
 		{
 			id: 'demo-4',
 			scheduledAt: '2025-04-28T11:00:00',
-			topic: 'System',
+			connection: 'Standard',
+			location: 'System',
 			keyword: 'Test',
 			info: 'Monatlicher Funktionstest der Alarmierung.',
 			status: 'planned'
@@ -42,7 +47,8 @@ export function getDemoAlarms(): AlarmItem[] {
 		{
 			id: 'demo-5',
 			scheduledAt: '2025-04-30T08:30:45',
-			topic: 'Eingang',
+			connection: 'Standard',
+			location: 'Eingang',
 			keyword: 'Sicherheit',
 			info: 'Türkontrolle – ungewöhnliche Aktivität im Eingangsbereich.',
 			status: 'planned'
@@ -53,13 +59,21 @@ export function getDemoAlarms(): AlarmItem[] {
 /**
  * Liefert die Standardwerte des Formulars „Neue Alarmierung“.
  *
- * @returns vorausgefüllter Entwurf passend zum Screenshot
+ * Die Uhrzeit ist immer der aktuelle lokale Zeitstempel.
+ *
+ * @param options optionale Auswahllisten und optionaler Zeitpunkt
+ * @returns vorausgefüllter Entwurf
  */
-export function getDefaultDraft() {
+export function getDefaultDraft(options?: {
+	connections?: string[];
+	keywords?: string[];
+	now?: Date;
+}) {
 	return {
-		scheduledAt: '2025-04-24T14:30:15',
-		topic: 'Gebäude 3',
-		keyword: 'Feueralarm',
+		scheduledAt: toDateTimeLocalValue(options?.now ?? new Date()),
+		connection: options?.connections?.[0] ?? 'Standard',
+		location: 'Gebäude 3',
+		keyword: options?.keywords?.[0] ?? 'Feueralarm',
 		info: 'Rauchentwicklung im Serverraum. Bitte umgehend prüfen!'
 	};
 }

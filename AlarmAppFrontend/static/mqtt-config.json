@@ -1,9 +1,0 @@
-{
-	"useSsl": false,
-	"brokerHost": "localhost",
-	"brokerPort": "9001",
-	"brokerPath": "/mqtt",
-	"user": "alarm",
-	"password": "alarm",
-	"mqttTopic": "JF/Alarm/KB"
-}

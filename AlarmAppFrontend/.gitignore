@@ -30,9 +30,6 @@ Thumbs.db
 !.env.test
 *.local
 
-# Lokale MQTT-Broker-Daten, werden zur Laufzeit ohne Rebuild gelesen.
-static/mqtt-config.local.json
-
 # Editor
 .vscode/*
 !.vscode/extensions.json
