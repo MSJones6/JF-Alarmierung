@@ -66,8 +66,5 @@ export type AppSettings = {
 /** Zustände der Statusanzeige nach einem Versand. */
 export type StatusType = 'idle' | 'sending' | 'success' | 'error';
 
-/** Minimale Storage-Schnittstelle für Tests und localStorage. */
-export type StorageLike = {
-	getItem(key: string): string | null;
-	setItem(key: string, value: string): void;
-};
+/** Erreichbarkeit der Alarm-API aus Sicht der Oberfläche. */
+export type BackendConnectionStatus = 'checking' | 'online' | 'offline';

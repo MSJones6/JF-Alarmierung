@@ -19,9 +19,6 @@ export default defineConfig({
 			adapter: adapter()
 		})
 	],
-	optimizeDeps: {
-		include: ['mqtt']
-	},
 	server: {
 		proxy: {
 			'/api': {
@@ -29,9 +26,6 @@ export default defineConfig({
 				changeOrigin: true
 			}
 		}
-	},
-	ssr: {
-		noExternal: ['mqtt']
 	},
 	test: {
 		expect: { requireAssertions: true },

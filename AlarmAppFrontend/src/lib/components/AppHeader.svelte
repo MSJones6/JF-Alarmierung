@@ -1,16 +1,20 @@
 <script lang="ts">
 	/**
-	 * Kopfzeile der Alarmierungsoberfläche mit Einstellungen und Benutzerinfo.
+	 * Kopfzeile der Alarmierungsoberfläche mit Serverstatus, Einstellungen und Benutzerinfo.
 	 */
 	import Bell from '@lucide/svelte/icons/bell';
 	import Settings from '@lucide/svelte/icons/settings';
 	import User from '@lucide/svelte/icons/user';
+	import BackendStatusBadge from '$lib/components/BackendStatusBadge.svelte';
+	import type { BackendConnectionStatus } from '$lib/types';
 
 	let {
 		username,
+		backendStatus,
 		onOpenSettings
 	}: {
 		username: string;
+		backendStatus: BackendConnectionStatus;
 		onOpenSettings: () => void;
 	} = $props();
 
@@ -18,7 +22,7 @@
 </script>
 
 <header class="rounded-[28px] bg-white px-6 py-4 shadow-sm">
-	<div class="flex items-center justify-between gap-4">
+	<div class="flex flex-wrap items-center justify-between gap-4">
 		<div class="flex items-center gap-3">
 			<div
 				class="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500 text-white shadow-sm"
@@ -31,7 +35,8 @@
 			</div>
 		</div>
 
-		<div class="relative flex items-center gap-3">
+		<div class="relative flex flex-wrap items-center justify-end gap-3">
+			<BackendStatusBadge status={backendStatus} />
 			<button
 				type="button"
 				class="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"

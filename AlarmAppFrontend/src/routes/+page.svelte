@@ -3,11 +3,11 @@
 	 * Startseite der Alarmierungsoberfläche.
 	 */
 	import AppHeader from '$lib/components/AppHeader.svelte';
+	import BackendOfflineBanner from '$lib/components/BackendOfflineBanner.svelte';
 	import NewAlarmCard from '$lib/components/NewAlarmCard.svelte';
 	import PlannedAlarmsCard from '$lib/components/PlannedAlarmsCard.svelte';
 	import SettingsDialog from '$lib/components/SettingsDialog.svelte';
 	import {
-		buildMqttPayload,
 		getKeywordNames,
 		validateAlarmDraft
 	} from '$lib/alarm';
@@ -15,15 +15,15 @@
 		createRemoteAlarm,
 		deleteRemoteAlarm,
 		fetchAlarms,
+		fetchApiHealth,
 		fetchAppSettings,
 		initApiClient,
 		saveAppSettings,
 		updateRemoteAlarm
 	} from '$lib/api';
 	import { subscribeAlarmStream } from '$lib/alarm-stream';
+	import { startBackendHealthPolling } from '$lib/backend-status';
 	import { getDefaultDraft } from '$lib/demo-data';
-	import { DEFAULT_APP_SETTINGS, loadMqttConfig } from '$lib/mqtt-config';
-	import { publishAlarmMessage } from '$lib/mqtt';
 	import { findTopicConnection, getTopicNames } from '$lib/topic-connection';
 	import type {
 		AlarmDraft,
@@ -31,13 +31,14 @@
 		AlarmItem,
 		AlarmSortKey,
 		AppSettings,
+		BackendConnectionStatus,
 		SortDirection,
 		StatusType
 	} from '$lib/types';
 	import { onMount } from 'svelte';
 
 	let alarms = $state<AlarmItem[]>([]);
-	let settings = $state<AppSettings>(parseCopy(DEFAULT_APP_SETTINGS));
+	let settings = $state<AppSettings>({ keywords: [], topics: [] });
 	let draft = $state<AlarmDraft>(getDefaultDraft());
 	let filter = $state<AlarmFilter>('planned');
 	let sortKey = $state<AlarmSortKey>('scheduledAt');
@@ -47,23 +48,12 @@
 	let status = $state('');
 	let statusType = $state<StatusType>('idle');
 	let isSending = $state(false);
+	let backendStatus = $state<BackendConnectionStatus>('checking');
 
 	const connectionNames = $derived(getTopicNames(settings.topics));
 	const keywordNames = $derived(getKeywordNames(settings.keywords));
 	const selectedConnection = $derived(findTopicConnection(settings.topics, draft.connection));
-
-	/**
-	 * Kopiert die Standardeinstellungen, ohne Arrays zu teilen.
-	 *
-	 * @param source Vorlage
-	 * @returns unabhängige Kopie
-	 */
-	function parseCopy(source: AppSettings): AppSettings {
-		return {
-			keywords: source.keywords.map((keyword) => ({ ...keyword })),
-			topics: source.topics.map((topic) => ({ ...topic }))
-		};
-	}
+	const backendOnline = $derived(backendStatus === 'online');
 
 	$effect(() => {
 		if (editingId) {
@@ -77,46 +67,84 @@
 		}
 	});
 
+	// Prüft die API regelmäßig und lädt Daten nur bei erreichbarem Backend.
 	onMount(() => {
 		let closed = false;
 		let closeStream = () => {};
+		let stopPolling = () => {};
+
+		/**
+		 * Abonniert den Alarm-Stream neu.
+		 */
+		function connectStream(): void {
+			closeStream();
+			closeStream = subscribeAlarmStream((next) => {
+				alarms = next;
+			});
+		}
+
+		/**
+		 * Lädt Einstellungen und Alarme vom Server und öffnet den Stream.
+		 */
+		async function refreshFromApi(): Promise<void> {
+			try {
+				const nextSettings = await fetchAppSettings();
+				if (closed) {
+					return;
+				}
+				settings = nextSettings;
+				alignDraftWithSettings();
+			} catch {
+				if (!closed) {
+					backendStatus = 'offline';
+				}
+			}
+
+			try {
+				const nextAlarms = await fetchAlarms();
+				if (closed) {
+					return;
+				}
+				alarms = nextAlarms;
+			} catch {
+				if (!closed) {
+					alarms = [];
+					backendStatus = 'offline';
+				}
+			}
+
+			if (!closed && backendStatus === 'online') {
+				connectStream();
+			}
+		}
+
+		/**
+		 * Übernimmt einen neuen API-Status und lädt Daten beim Wechsel auf online.
+		 *
+		 * @param next geprüfter Zustand
+		 */
+		function applyBackendStatus(next: BackendConnectionStatus): void {
+			const becameOnline = next === 'online' && backendStatus !== 'online';
+			backendStatus = next;
+			if (becameOnline) {
+				void refreshFromApi();
+			}
+		}
 
 		void (async () => {
 			await initApiClient();
-			try {
-				settings = await fetchAppSettings();
-				alignDraftWithSettings();
-			} catch {
-				settings = await loadMqttConfig();
-				alignDraftWithSettings();
-				statusType = 'error';
-				status = 'Einstellungen konnten nicht vom Server geladen werden.';
-			}
-
-			try {
-				alarms = await fetchAlarms();
-			} catch {
-				alarms = [];
-			}
-
-			const stop = subscribeAlarmStream(
-				(next) => {
-					alarms = next;
-				},
-				(message) => {
-					statusType = 'error';
-					status = message;
-				}
-			);
 			if (closed) {
-				stop();
 				return;
 			}
-			closeStream = stop;
+			stopPolling = startBackendHealthPolling({
+				check: fetchApiHealth,
+				onStatus: applyBackendStatus
+			});
 		})();
 
 		return () => {
 			closed = true;
+			stopPolling();
 			closeStream();
 		};
 	});
@@ -139,6 +167,9 @@
 	 * @param next bearbeitete Einstellungen
 	 */
 	async function persistSettings(next: AppSettings): Promise<void> {
+		if (!backendOnline) {
+			return;
+		}
 		settings = await saveAppSettings(next);
 		alignDraftWithSettings();
 	}
@@ -174,6 +205,9 @@
 	 * Löscht eine Alarmierung nach Bestätigung auf dem Server.
 	 */
 	async function removeAlarm(alarm: AlarmItem): Promise<void> {
+		if (!backendOnline) {
+			return;
+		}
 		const confirmed = confirm(`Alarmierung „${alarm.keyword}“ wirklich löschen?`);
 		if (!confirmed) {
 			return;
@@ -193,6 +227,9 @@
 	 * Plant eine neue Alarmierung oder speichert Änderungen auf dem Server.
 	 */
 	async function scheduleAlarm(): Promise<void> {
+		if (!backendOnline) {
+			return;
+		}
 		const error = validateAlarmDraft(draft);
 		if (error) {
 			statusType = 'error';
@@ -220,11 +257,11 @@
 	}
 
 	/**
-	 * Sendet die Alarmierung sofort per MQTT und merkt sie als bereits alarmiert.
+	 * Lässt den Server die Alarmierung sofort per MQTT auslösen und als gesendet speichern.
 	 * Ein zweiter Klick während des laufenden Versands wird ignoriert.
 	 */
 	async function sendAlarm(): Promise<void> {
-		if (isSending) {
+		if (isSending || !backendOnline) {
 			return;
 		}
 
@@ -235,20 +272,11 @@
 			return;
 		}
 
-		const connection = findTopicConnection(settings.topics, draft.connection);
-		if (!connection) {
-			statusType = 'error';
-			status = 'Bitte wählen Sie eine Connection mit hinterlegter Verbindung.';
-			return;
-		}
-
 		isSending = true;
 		statusType = 'sending';
-		status = `Verbindung zu ${connection.brokerHost} wird hergestellt...`;
+		status = 'Alarmierung wird über den Server gesendet...';
 
 		try {
-			await publishAlarmMessage(connection, buildMqttPayload(draft));
-
 			if (editingId) {
 				await updateRemoteAlarm(editingId, draft, 'sent');
 				editingId = null;
@@ -271,13 +299,19 @@
 </script>
 
 <div class="mx-auto flex max-w-6xl flex-col gap-5">
-	<AppHeader username={selectedConnection?.user ?? ''} onOpenSettings={() => (settingsOpen = true)} />
+	<AppHeader
+		username={selectedConnection?.user ?? ''}
+		{backendStatus}
+		onOpenSettings={() => (settingsOpen = true)}
+	/>
+	<BackendOfflineBanner visible={backendStatus === 'offline'} />
 	<NewAlarmCard
 		bind:draft
 		connections={connectionNames}
 		keywords={keywordNames}
 		isEditing={editingId !== null}
 		{isSending}
+		{backendOnline}
 		{status}
 		{statusType}
 		onDirectAlarm={sendAlarm}
@@ -290,6 +324,7 @@
 		bind:filter
 		bind:sortKey
 		bind:sortDirection
+		{backendOnline}
 		onEdit={editAlarm}
 		onDelete={removeAlarm}
 	/>

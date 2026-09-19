@@ -1,6 +1,7 @@
 <script lang="ts">
 	/**
 	 * Formular zum direkten Auslösen oder Planen einer Alarmierung.
+	 * Aktionen sind deaktiviert, solange das Backend nicht erreichbar ist.
 	 */
 	import Calendar from '@lucide/svelte/icons/calendar';
 	import FileText from '@lucide/svelte/icons/file-text';
@@ -18,6 +19,7 @@
 		keywords,
 		isEditing,
 		isSending,
+		backendOnline = true,
 		status,
 		statusType,
 		onDirectAlarm,
@@ -29,6 +31,7 @@
 		keywords: string[];
 		isEditing: boolean;
 		isSending: boolean;
+		backendOnline?: boolean;
 		status: string;
 		statusType: StatusType;
 		onDirectAlarm: () => void;
@@ -179,9 +182,9 @@
 		<button
 			class="inline-flex items-center justify-center gap-2 rounded-xl bg-alarm py-3.5 font-semibold text-white shadow-sm transition hover:bg-alarm-hover disabled:cursor-not-allowed disabled:opacity-70"
 			type="button"
-			disabled={isSending}
+			disabled={isSending || !backendOnline}
 			onclick={() => {
-				if (!isSending) {
+				if (!isSending && backendOnline) {
 					onDirectAlarm();
 				}
 			}}
@@ -190,9 +193,14 @@
 			Direkt alarmieren
 		</button>
 		<button
-			class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand py-3.5 font-semibold text-white hover:bg-brand-hover"
+			class="inline-flex items-center justify-center gap-2 rounded-xl bg-brand py-3.5 font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-70"
 			type="button"
-			onclick={onSchedule}
+			disabled={!backendOnline}
+			onclick={() => {
+				if (backendOnline) {
+					onSchedule();
+				}
+			}}
 		>
 			<Calendar size={18} />
 			{isEditing ? 'Änderungen speichern' : 'Alarmierung planen'}

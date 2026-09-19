@@ -1,6 +1,7 @@
 <script lang="ts">
 	/**
 	 * Tabelle der geplanten und bereits ausgelösten Alarmierungen.
+	 * Bearbeiten und Löschen sind ohne erreichbares Backend deaktiviert.
 	 */
 	import Calendar from '@lucide/svelte/icons/calendar';
 	import Check from '@lucide/svelte/icons/check';
@@ -20,6 +21,7 @@
 		filter = $bindable(),
 		sortKey = $bindable(),
 		sortDirection = $bindable(),
+		backendOnline = true,
 		onEdit,
 		onDelete
 	}: {
@@ -28,6 +30,7 @@
 		filter: AlarmFilter;
 		sortKey: AlarmSortKey;
 		sortDirection: SortDirection;
+		backendOnline?: boolean;
 		onEdit: (alarm: AlarmItem) => void;
 		onDelete: (alarm: AlarmItem) => void;
 	} = $props();
@@ -180,18 +183,28 @@
 						<td class="rounded-r-2xl bg-slate-50/80 px-3 py-2.5">
 							<div class="flex justify-end gap-2">
 								<button
-									class="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-sky-500 transition hover:bg-sky-100"
+									class="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-sky-500 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
 									type="button"
 									aria-label="Alarmierung bearbeiten"
-									onclick={() => onEdit(alarm)}
+									disabled={!backendOnline}
+									onclick={() => {
+										if (backendOnline) {
+											onEdit(alarm);
+										}
+									}}
 								>
 									<Pencil size={16} />
 								</button>
 								<button
-									class="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50 text-rose-500 transition hover:bg-rose-100"
+									class="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50 text-rose-500 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
 									type="button"
 									aria-label="Alarmierung löschen"
-									onclick={() => onDelete(alarm)}
+									disabled={!backendOnline}
+									onclick={() => {
+										if (backendOnline) {
+											onDelete(alarm);
+										}
+									}}
 								>
 									<Trash2 size={16} />
 								</button>

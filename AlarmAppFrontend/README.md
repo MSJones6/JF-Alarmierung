@@ -37,17 +37,8 @@ pnpm preview
 
 Zum Deployen ggf. einen [Adapter](https://svelte.dev/docs/kit/adapters) für die Zielumgebung einrichten.
 
-## MQTT-Broker
+## API
 
-Die Verbindungsdaten liegen **nicht** in einer Vite-`.env` (die würde mitgebaut). Stattdessen liest die App zur Laufzeit JSON-Dateien aus `static/`:
+Verbindungen, Alarmstichworte und Alarme kommen ausschließlich vom Spring-Server. Die optionale Datei `static/api-config.json` setzt nur die API-Basis-URL zur Laufzeit (kein Rebuild). Fehlt sie oder ist sie ungültig, verwendet das Frontend denselben Ursprung bzw. den Vite-Proxy `/api`.
 
-1. `static/mqtt-config.local.json` (optional, nicht im Git, ohne Rebuild)
-2. `static/mqtt-config.json` (mitgelieferte Standardwerte)
-
-Beispiel für eine lokale Datei:
-
-```sh
-cp static/mqtt-config.local.json.example static/mqtt-config.local.json
-```
-
-Danach Host, Port, Topic oder Zugangsdaten anpassen und die Seite neu laden. Ein `pnpm build` ist dafür nicht nötig.
+Broker-Zugangsdaten werden in der API gepflegt, nicht im Frontend.

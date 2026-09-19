@@ -1,26 +1,21 @@
+/**
+ * Bereinigt Einstellungen aus dem Dialog.
+ *
+ * Verbindungen und Stichworte kommen nur von der REST-API, nicht aus lokalen JSON-Dateien.
+ */
 import { DEFAULT_KEYWORD_OPTIONS, getKeywordColor } from './alarm';
 import { DEFAULT_MQTT_SETTINGS } from './mqtt';
-import { resolveStorage } from './storage';
 import { createTopicConnection } from './topic-connection';
-import type { AppSettings, KeywordOption, MqttSettings, StorageLike, TopicConnection } from './types';
+import type { AppSettings, KeywordOption, MqttSettings, TopicConnection } from './types';
 
-/** Öffentliche URL der mitgelieferten Standardkonfiguration. */
-export const MQTT_CONFIG_URL = '/mqtt-config.json';
-
-/** Öffentliche URL der optionalen lokalen Überschreibung, ohne Neu-Build. */
-export const MQTT_LOCAL_CONFIG_URL = '/mqtt-config.local.json';
-
-/** Schlüssel für im Browser gespeicherte App-Einstellungen. */
-export const MQTT_SETTINGS_STORAGE_KEY = 'jf-mqtt-settings';
-
-/** Standard-Connection mit den mitgelieferten Broker-Daten. */
+/** Standard-Connection für unvollständige Einstellungen im Dialog. */
 export const DEFAULT_TOPIC_CONNECTION: TopicConnection = createTopicConnection({
 	id: 'standard',
 	name: 'Standard',
 	mqttTopic: 'JF/Alarm/KB'
 });
 
-/** Vollständige Standard-Einstellungen inkl. Connections. */
+/** Fallback-Werte zum Bereinigen unvollständiger Einstellungen im Dialog. */
 export const DEFAULT_APP_SETTINGS: AppSettings = {
 	keywords: DEFAULT_KEYWORD_OPTIONS.map((keyword) => ({ ...keyword })),
 	topics: [{ ...DEFAULT_TOPIC_CONNECTION }]
@@ -217,96 +212,4 @@ function parseTopicConnections(raw: unknown, fallback: MqttSettings): TopicConne
 	}
 
 	return connections;
-}
-
-/**
- * Lädt eine Konfigurationsdatei ohne Browser-Cache.
- *
- * @param url relative URL unter `static/`
- * @param fetchFn optionale Fetch-Funktion, überschreibbar in Tests
- * @returns Einstellungen oder `null`, wenn die Datei fehlt oder ungültig ist
- */
-async function fetchMqttConfig(
-	url: string,
-	fetchFn: typeof fetch
-): Promise<AppSettings | null> {
-	try {
-		const response = await fetchFn(url, { cache: 'no-store' });
-		if (!response.ok) {
-			return null;
-		}
-		return parseAppSettings(await response.json());
-	} catch {
-		return null;
-	}
-}
-
-/**
- * Liest im Browser gespeicherte App-Einstellungen.
- *
- * @param storage optionale Storage-Implementierung
- * @returns gespeicherte Einstellungen oder `null`
- */
-export function loadStoredMqttSettings(storage?: StorageLike): AppSettings | null {
-	const resolved = resolveStorage(storage);
-	if (!resolved) {
-		return null;
-	}
-
-	const raw = resolved.getItem(MQTT_SETTINGS_STORAGE_KEY);
-	if (!raw) {
-		return null;
-	}
-
-	try {
-		return parseAppSettings(JSON.parse(raw));
-	} catch {
-		return null;
-	}
-}
-
-/**
- * Speichert Stichworte und Connections im Browser.
- *
- * @param settings aktuelle Einstellungen
- * @param storage optionale Storage-Implementierung
- */
-export function saveMqttSettings(settings: AppSettings, storage?: StorageLike): void {
-	const resolved = resolveStorage(storage);
-	if (!resolved) {
-		return;
-	}
-	resolved.setItem(MQTT_SETTINGS_STORAGE_KEY, JSON.stringify(parseAppSettings(settings)));
-}
-
-/**
- * Lädt die App-Einstellungen zur Laufzeit.
- *
- * Zuerst gelten im Browser gespeicherte Werte aus den Einstellungen.
- * Fehlen diese, wird `mqtt-config.local.json` und danach `mqtt-config.json` gelesen.
- *
- * @param fetchFn optionale Fetch-Funktion, überschreibbar in Tests
- * @param storage optionale Storage-Implementierung, überschreibbar in Tests
- * @returns geladene oder Standard-Einstellungen
- */
-export async function loadMqttConfig(
-	fetchFn: typeof fetch = fetch,
-	storage?: StorageLike
-): Promise<AppSettings> {
-	const storedSettings = loadStoredMqttSettings(storage);
-	if (storedSettings) {
-		return storedSettings;
-	}
-
-	const localConfig = await fetchMqttConfig(MQTT_LOCAL_CONFIG_URL, fetchFn);
-	if (localConfig) {
-		return localConfig;
-	}
-
-	const sharedConfig = await fetchMqttConfig(MQTT_CONFIG_URL, fetchFn);
-	if (sharedConfig) {
-		return sharedConfig;
-	}
-
-	return parseAppSettings(DEFAULT_APP_SETTINGS);
 }

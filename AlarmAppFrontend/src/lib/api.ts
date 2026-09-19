@@ -2,10 +2,14 @@
  * HTTP-Client für die Alarm-API unter AlarmAppServer.
  */
 import { getKeywordColor } from './alarm';
+import { isApiHealthy } from './backend-status';
 import type { AlarmDraft, AlarmItem, AlarmStatus, AppSettings, KeywordOption, TopicConnection } from './types';
 
 /** Basis-URL der REST-API, leer bedeutet gleicher Ursprung (Vite-Proxy). */
 export let apiBaseUrl = '';
+
+/** Öffentliche URL der Laufzeitkonfiguration für die API-Basis-URL. */
+export const API_CONFIG_URL = '/api-config.json';
 
 /**
  * Liest die API-URL aus der Laufzeitkonfiguration.
@@ -13,8 +17,9 @@ export let apiBaseUrl = '';
  * @param fetchFn optionale Fetch-Funktion
  */
 export async function initApiClient(fetchFn: typeof fetch = fetch): Promise<void> {
+	apiBaseUrl = '';
 	try {
-		const response = await fetchFn('/mqtt-config.json', { cache: 'no-store' });
+		const response = await fetchFn(API_CONFIG_URL, { cache: 'no-store' });
 		if (!response.ok) {
 			return;
 		}
@@ -35,6 +40,24 @@ export async function initApiClient(fetchFn: typeof fetch = fetch): Promise<void
  */
 export function apiUrl(path: string): string {
 	return `${apiBaseUrl}${path}`;
+}
+
+/**
+ * Prüft, ob die Alarm-API erreichbar ist.
+ *
+ * @param fetchFn optionale Fetch-Funktion
+ * @returns `true`, wenn `/api/health` mit Status `UP` antwortet
+ */
+export async function fetchApiHealth(fetchFn: typeof fetch = fetch): Promise<boolean> {
+	try {
+		const response = await fetchFn(apiUrl('/api/health'), { cache: 'no-store' });
+		if (!response.ok) {
+			return false;
+		}
+		return isApiHealthy(await response.json());
+	} catch {
+		return false;
+	}
 }
 
 /**
