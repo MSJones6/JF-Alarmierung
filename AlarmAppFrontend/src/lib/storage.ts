@@ -1,4 +1,3 @@
-import { getDemoAlarms } from './demo-data';
 import type { AlarmItem, StorageLike } from './types';
 
 /** Schlüssel für gespeicherte Alarmierungen. */
@@ -10,7 +9,7 @@ export const ALARMS_STORAGE_KEY = 'jf-alarm-items';
  * @param storage explizite Implementierung, sonst `localStorage`
  * @returns Storage oder `null` in Umgebungen ohne Web-Storage
  */
-function resolveStorage(storage?: StorageLike): StorageLike | null {
+export function resolveStorage(storage?: StorageLike): StorageLike | null {
 	if (storage) {
 		return storage;
 	}
@@ -21,7 +20,7 @@ function resolveStorage(storage?: StorageLike): StorageLike | null {
 }
 
 /**
- * Liest Alarmierungen aus dem Storage oder liefert die Demo-Daten.
+ * Liest Alarmierungen aus dem Storage oder liefert eine leere Liste.
  *
  * @param storage optionale Storage-Implementierung
  * @returns Liste der Alarmierungen
@@ -29,19 +28,22 @@ function resolveStorage(storage?: StorageLike): StorageLike | null {
 export function loadAlarms(storage?: StorageLike): AlarmItem[] {
 	const resolved = resolveStorage(storage);
 	if (!resolved) {
-		return getDemoAlarms();
+		return [];
 	}
 
 	const raw = resolved.getItem(ALARMS_STORAGE_KEY);
 	if (!raw) {
-		return getDemoAlarms();
+		return [];
 	}
 
 	try {
 		const parsed = JSON.parse(raw) as AlarmItem[];
-		return Array.isArray(parsed) ? parsed : getDemoAlarms();
+		if (!Array.isArray(parsed)) {
+			return [];
+		}
+		return parsed.filter((alarm) => !alarm.id.startsWith('demo-'));
 	} catch {
-		return getDemoAlarms();
+		return [];
 	}
 }
 

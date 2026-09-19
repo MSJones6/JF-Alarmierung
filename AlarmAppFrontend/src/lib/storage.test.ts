@@ -25,22 +25,37 @@ class MemoryStorage implements StorageLike {
 }
 
 describe('Storage', () => {
-	it('liefert Demo-Daten, wenn noch nichts gespeichert wurde', () => {
+	it('liefert eine leere Liste, wenn noch nichts gespeichert wurde', () => {
 		const storage = new MemoryStorage();
-		expect(loadAlarms(storage)).toEqual(getDemoAlarms());
+		expect(loadAlarms(storage)).toEqual([]);
 	});
 
-	it('rundet Alarmierungen über den Storage', () => {
+	it('rundet eigene Alarmierungen über den Storage', () => {
 		const storage = new MemoryStorage();
-		const alarms = getDemoAlarms().slice(0, 1);
+		const alarms = [
+			{
+				id: 'user-1',
+				scheduledAt: '2025-04-24T14:30:15',
+				topic: 'Gebäude 3',
+				keyword: 'Feueralarm',
+				info: 'Rauchentwicklung',
+				status: 'planned' as const
+			}
+		];
 		saveAlarms(alarms, storage);
-		expect(storage.getItem(ALARMS_STORAGE_KEY)).toContain('demo-1');
+		expect(storage.getItem(ALARMS_STORAGE_KEY)).toContain('user-1');
 		expect(loadAlarms(storage)).toEqual(alarms);
 	});
 
-	it('fällt bei ungültigem JSON auf die Demo-Daten zurück', () => {
+	it('entfernt gespeicherte Demo-Einträge aus der Liste', () => {
+		const storage = new MemoryStorage();
+		saveAlarms(getDemoAlarms(), storage);
+		expect(loadAlarms(storage)).toEqual([]);
+	});
+
+	it('fällt bei ungültigem JSON auf eine leere Liste zurück', () => {
 		const storage = new MemoryStorage();
 		storage.setItem(ALARMS_STORAGE_KEY, '{ungueltig');
-		expect(loadAlarms(storage)).toEqual(getDemoAlarms());
+		expect(loadAlarms(storage)).toEqual([]);
 	});
 });
