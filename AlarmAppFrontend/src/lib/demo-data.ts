@@ -1,3 +1,4 @@
+import { toDateTimeLocalValue } from './alarm';
 import type { AlarmItem } from './types';
 
 /**
@@ -58,12 +59,18 @@ export function getDemoAlarms(): AlarmItem[] {
 /**
  * Liefert die Standardwerte des Formulars „Neue Alarmierung“.
  *
- * @param options optionale Auswahllisten aus den Einstellungen
+ * Die Uhrzeit ist immer der aktuelle lokale Zeitstempel.
+ *
+ * @param options optionale Auswahllisten und optionaler Zeitpunkt
  * @returns vorausgefüllter Entwurf
  */
-export function getDefaultDraft(options?: { connections?: string[]; keywords?: string[] }) {
+export function getDefaultDraft(options?: {
+	connections?: string[];
+	keywords?: string[];
+	now?: Date;
+}) {
 	return {
-		scheduledAt: '2025-04-24T14:30:15',
+		scheduledAt: toDateTimeLocalValue(options?.now ?? new Date()),
 		connection: options?.connections?.[0] ?? 'Standard',
 		location: 'Gebäude 3',
 		keyword: options?.keywords?.[0] ?? 'Feueralarm',

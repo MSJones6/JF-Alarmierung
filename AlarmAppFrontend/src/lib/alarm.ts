@@ -105,6 +105,19 @@ export function findKeywordColor(keywords: KeywordOption[], keyword: string): st
 }
 
 /**
+ * Formatiert ein Datum als Wert für `datetime-local`.
+ *
+ * Es wird die lokale Zeitzone verwendet, nicht UTC.
+ *
+ * @param date Zeitpunkt, standardmäßig jetzt
+ * @returns Zeitstempel im Format `YYYY-MM-DDTHH:mm:ss`
+ */
+export function toDateTimeLocalValue(date: Date = new Date()): string {
+	const pad = (value: number) => String(value).padStart(2, '0');
+	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+/**
  * Formatiert einen lokalen ISO-Zeitstempel ins Anzeigeformat der Oberfläche.
  *
  * @param isoLocal Zeitstempel im Format `YYYY-MM-DDTHH:mm` oder `YYYY-MM-DDTHH:mm:ss`

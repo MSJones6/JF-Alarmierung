@@ -6,6 +6,7 @@ import {
 	filterAlarms,
 	formatGermanDateTime,
 	getFilterCountLabel,
+	toDateTimeLocalValue,
 	getKeywordBadgeStyle,
 	getKeywordColor,
 	mixHexWithWhite,
@@ -37,6 +38,13 @@ const sampleAlarms: AlarmItem[] = [
 		status: 'sent'
 	}
 ];
+
+describe('toDateTimeLocalValue', () => {
+	it('formatiert die lokale Zeit für datetime-local', () => {
+		const date = new Date(2026, 8, 20, 0, 29, 7);
+		expect(toDateTimeLocalValue(date)).toBe('2026-09-20T00:29:07');
+	});
+});
 
 describe('formatGermanDateTime', () => {
 	it('formatiert lokale ISO-Zeitstempel mit Sekunden', () => {
