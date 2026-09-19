@@ -74,6 +74,8 @@ export function publishAlarmMessage(
 		try {
 			const client = connectFn(getBrokerUrl(settings), mqttOptions);
 			let settled = false;
+			/** mqtt.js kann das Connect-Ereignis über WebSockets mehrfach auslösen. */
+			let published = false;
 
 			const finish = (error?: Error) => {
 				if (settled) {
@@ -96,6 +98,10 @@ export function publishAlarmMessage(
 			}, 10000);
 
 			client.on('connect', () => {
+				if (published) {
+					return;
+				}
+				published = true;
 				client.publish(settings.mqttTopic, payload, { qos: 1 }, (error?: Error) => {
 					finish(error);
 				});

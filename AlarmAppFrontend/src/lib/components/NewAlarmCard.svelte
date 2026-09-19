@@ -145,7 +145,11 @@
 			class="inline-flex items-center justify-center gap-2 rounded-xl bg-alarm py-3.5 font-semibold text-white shadow-sm transition hover:bg-alarm-hover disabled:cursor-not-allowed disabled:opacity-70"
 			type="button"
 			disabled={isSending}
-			onclick={onDirectAlarm}
+			onclick={() => {
+				if (!isSending) {
+					onDirectAlarm();
+				}
+			}}
 		>
 			<Zap size={18} />
 			Direkt alarmieren

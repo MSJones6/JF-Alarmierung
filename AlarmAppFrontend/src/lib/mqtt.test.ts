@@ -49,6 +49,28 @@ describe('publishAlarmMessage', () => {
 		expect(end).toHaveBeenCalled();
 	});
 
+	it('veröffentlicht die Nachricht nur einmal, wenn Connect zweimal feuert', async () => {
+		const publish = vi.fn((_topic, _payload, _opts, callback: (error?: Error) => void) => {
+			callback();
+		});
+		const connectFn: MqttConnectFn = () => ({
+			connected: false,
+			on(event: string, handler: (...args: unknown[]) => void) {
+				if (event === 'connect') {
+					handler();
+					handler();
+				}
+				return this as never;
+			},
+			publish,
+			end: vi.fn()
+		});
+
+		await publishAlarmMessage(DEFAULT_MQTT_SETTINGS, 'Feueralarm###Gebäude 3###Test', connectFn);
+
+		expect(publish).toHaveBeenCalledTimes(1);
+	});
+
 	it('lehnt bei MQTT-Fehlern ab', async () => {
 		const connectFn: MqttConnectFn = () => ({
 			connected: false,

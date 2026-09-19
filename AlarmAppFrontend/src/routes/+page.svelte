@@ -113,8 +113,13 @@
 
 	/**
 	 * Sendet die Alarmierung sofort per MQTT und merkt sie als bereits alarmiert.
+	 * Ein zweiter Klick während des laufenden Versands wird ignoriert.
 	 */
 	async function sendAlarm(): Promise<void> {
+		if (isSending) {
+			return;
+		}
+
 		const error = validateAlarmDraft(draft);
 		if (error) {
 			statusType = 'error';
