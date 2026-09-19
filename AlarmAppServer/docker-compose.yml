@@ -10,6 +10,8 @@ services:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
+    networks:
+      - msj-jf-alarm-net
 
   postgres:
     image: postgres:16-alpine
@@ -26,6 +28,22 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - msj-jf-alarm-net
+
+  adminer:
+    image: adminer:4
+    container_name: alarm-adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080"   # Adminer (Web-UI für die Datenbank)
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - msj-jf-alarm-net
 
   alarm-api:
     build:
@@ -43,6 +61,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - msj-jf-alarm-net
 
 volumes:
   postgres_data:
+
+# Eigenes Docker-Netzwerk für alle Dienste der JF-Alarmierung.
+networks:
+  msj-jf-alarm-net:
+    name: MSJ-JF-Alarm-Net
+    driver: bridge
