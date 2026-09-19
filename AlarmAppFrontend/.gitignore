@@ -1,3 +1,15 @@
+node_modules
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+dist
+dist-ssr
+
 # Logs
 logs
 *.log
@@ -7,24 +19,31 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+!.env.test
 *.local
 
-# Editor directories and files
+# Lokale MQTT-Broker-Daten, werden zur Laufzeit ohne Rebuild gelesen.
+static/mqtt-config.local.json
+
+# Editor
 .vscode/*
 !.vscode/extensions.json
-.DS_Store
+!.vscode/settings.json
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-.idea/
-target/
-.gradle/
-AlarmAppClient/app/build/
-mosquitto.db
-mosquitto.log
 
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
