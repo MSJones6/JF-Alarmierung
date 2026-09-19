@@ -3,6 +3,7 @@ export * from './alarm';
 export * from './alarm-stream';
 export * from './api';
 export * from './backend-status';
+export * from './clock-time';
 export * from './demo-data';
 export * from './mqtt';
 export * from './mqtt-config';

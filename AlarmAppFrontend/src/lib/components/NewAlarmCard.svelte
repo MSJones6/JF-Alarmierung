@@ -4,12 +4,14 @@
 	 * Aktionen sind deaktiviert, solange das Backend nicht erreichbar ist.
 	 */
 	import Calendar from '@lucide/svelte/icons/calendar';
+	import Clock from '@lucide/svelte/icons/clock';
 	import FileText from '@lucide/svelte/icons/file-text';
 	import MapPin from '@lucide/svelte/icons/map-pin';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Radio from '@lucide/svelte/icons/radio';
 	import Tag from '@lucide/svelte/icons/tag';
 	import Zap from '@lucide/svelte/icons/zap';
+	import AnalogTimePicker from '$lib/components/AnalogTimePicker.svelte';
 	import { formatGermanDateTime } from '$lib/alarm';
 	import type { AlarmDraft, StatusType } from '$lib/types';
 
@@ -38,6 +40,9 @@
 		onSchedule: () => void;
 		onCancelEdit: () => void;
 	} = $props();
+
+	/** Öffnet den analogen Zeitdialog. */
+	let timePickerOpen = $state(false);
 
 	/** Connections inkl. des aktuell gewählten Werts, falls er nicht mehr in der Liste steht. */
 	const connectionOptions = $derived(
@@ -106,31 +111,35 @@
 			</div>
 		</label>
 
-		<label class="block">
+		<div class="block">
 			<span class="mb-2 block text-sm font-semibold text-slate-600">Zeit</span>
-			<div class="datetime-wrap">
-				<Calendar
-					class="pointer-events-none absolute top-1/2 left-4 z-10 -translate-y-1/2 text-slate-400"
+			<button
+				type="button"
+				class="relative flex w-full items-center rounded-xl border border-slate-200 bg-white py-3 pr-12 pl-12 text-left text-slate-700 shadow-none transition hover:border-blue-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none"
+				aria-haspopup="dialog"
+				aria-expanded={timePickerOpen}
+				onclick={() => {
+					timePickerOpen = true;
+				}}
+			>
+				<Clock
+					class="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-slate-400"
 					size={18}
 				/>
-				<span
-					class="pointer-events-none absolute top-1/2 left-12 z-10 -translate-y-1/2 text-slate-700"
-				>
-					{formatGermanDateTime(draft.scheduledAt)}
-				</span>
-				<input
-					class="datetime-input w-full rounded-xl border-slate-200 py-3 pr-12 pl-12 text-transparent caret-transparent shadow-none focus:border-blue-400 focus:ring-blue-400"
-					type="datetime-local"
-					step="1"
-					lang="de"
-					bind:value={draft.scheduledAt}
-				/>
+				{formatGermanDateTime(draft.scheduledAt)}
 				<Calendar
 					class="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-slate-400"
 					size={18}
 				/>
-			</div>
-		</label>
+			</button>
+			<AnalogTimePicker
+				bind:open={timePickerOpen}
+				value={draft.scheduledAt}
+				onApply={(next) => {
+					draft.scheduledAt = next;
+				}}
+			/>
+		</div>
 
 		<div class="grid gap-5 md:grid-cols-2">
 			<label class="block">
