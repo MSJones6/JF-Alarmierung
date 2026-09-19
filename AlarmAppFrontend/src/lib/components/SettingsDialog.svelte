@@ -1,8 +1,11 @@
 <script lang="ts">
 	/**
 	 * Dialog für MQTT-Broker-Einstellungen.
+	 * Änderungen werden erst beim Speichern übernommen und im Browser persistiert.
 	 */
+	import { untrack } from 'svelte';
 	import X from '@lucide/svelte/icons/x';
+	import { parseMqttConfig, saveMqttSettings } from '$lib/mqtt-config';
 	import type { MqttSettings } from '$lib/types';
 
 	let {
@@ -13,10 +16,30 @@
 		settings: MqttSettings;
 	} = $props();
 
+	/** Bearbeitete Kopie, bis der Dialog gespeichert oder geschlossen wird. */
+	let draft = $state<MqttSettings>({ ...settings });
+
+	$effect(() => {
+		if (open) {
+			untrack(() => {
+				draft = { ...settings };
+			});
+		}
+	});
+
 	/**
-	 * Schließt den Einstellungsdialog.
+	 * Schließt den Einstellungsdialog ohne zu speichern.
 	 */
 	function close(): void {
+		open = false;
+	}
+
+	/**
+	 * Übernimmt die Eingaben, speichert sie im Browser und schließt den Dialog.
+	 */
+	function save(): void {
+		settings = parseMqttConfig(draft);
+		saveMqttSettings(settings);
 		open = false;
 	}
 </script>
@@ -28,8 +51,7 @@
 				<div>
 					<h2 class="text-xl font-extrabold text-navy">Einstellungen</h2>
 					<p class="text-sm text-slate-400">
-						Dauerhaft in <code>static/mqtt-config.json</code> ändern. Speichern gilt nur bis zum
-						Neuladen.
+						Die Werte werden in diesem Browser gespeichert und bleiben nach dem Neuladen erhalten.
 					</p>
 				</div>
 				<button
@@ -47,7 +69,7 @@
 					<input
 						class="rounded border-slate-300 text-blue-600 focus:ring-blue-400"
 						type="checkbox"
-						bind:checked={settings.useSsl}
+						bind:checked={draft.useSsl}
 					/>
 					SSL-Verschlüsselung (verschlüsselt)
 				</label>
@@ -56,7 +78,7 @@
 					Hostname
 					<input
 						class="mt-1 w-full rounded-xl border-slate-200 focus:border-blue-400 focus:ring-blue-400"
-						bind:value={settings.brokerHost}
+						bind:value={draft.brokerHost}
 					/>
 				</label>
 
@@ -67,7 +89,7 @@
 						type="number"
 						min="1"
 						max="65535"
-						bind:value={settings.brokerPort}
+						bind:value={draft.brokerPort}
 					/>
 				</label>
 
@@ -75,7 +97,7 @@
 					Pfad
 					<input
 						class="mt-1 w-full rounded-xl border-slate-200 focus:border-blue-400 focus:ring-blue-400"
-						bind:value={settings.brokerPath}
+						bind:value={draft.brokerPath}
 					/>
 				</label>
 
@@ -83,7 +105,7 @@
 					MQTT-Topic
 					<input
 						class="mt-1 w-full rounded-xl border-slate-200 focus:border-blue-400 focus:ring-blue-400"
-						bind:value={settings.mqttTopic}
+						bind:value={draft.mqttTopic}
 					/>
 				</label>
 
@@ -91,7 +113,7 @@
 					User
 					<input
 						class="mt-1 w-full rounded-xl border-slate-200 focus:border-blue-400 focus:ring-blue-400"
-						bind:value={settings.user}
+						bind:value={draft.user}
 					/>
 				</label>
 
@@ -100,7 +122,7 @@
 					<input
 						class="mt-1 w-full rounded-xl border-slate-200 focus:border-blue-400 focus:ring-blue-400"
 						type="password"
-						bind:value={settings.password}
+						bind:value={draft.password}
 					/>
 				</label>
 			</div>
@@ -108,7 +130,7 @@
 			<button
 				class="mt-6 w-full rounded-xl bg-brand py-3 font-semibold text-white hover:bg-brand-hover"
 				type="button"
-				onclick={close}
+				onclick={save}
 			>
 				Speichern
 			</button>

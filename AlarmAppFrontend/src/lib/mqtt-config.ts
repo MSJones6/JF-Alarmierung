@@ -1,11 +1,15 @@
 import { DEFAULT_MQTT_SETTINGS } from './mqtt';
-import type { MqttSettings } from './types';
+import { resolveStorage } from './storage';
+import type { MqttSettings, StorageLike } from './types';
 
 /** Öffentliche URL der mitgelieferten Standardkonfiguration. */
 export const MQTT_CONFIG_URL = '/mqtt-config.json';
 
 /** Öffentliche URL der optionalen lokalen Überschreibung, ohne Neu-Build. */
 export const MQTT_LOCAL_CONFIG_URL = '/mqtt-config.local.json';
+
+/** Schlüssel für im Browser gespeicherte Broker-Einstellungen. */
+export const MQTT_SETTINGS_STORAGE_KEY = 'jf-mqtt-settings';
 
 /**
  * Wandelt unbekannte JSON-Daten in MQTT-Einstellungen um.
@@ -71,15 +75,62 @@ async function fetchMqttConfig(
 }
 
 /**
- * Lädt die MQTT-Broker-Daten zur Laufzeit aus den JSON-Dateien unter `static/`.
+ * Liest im Browser gespeicherte Broker-Einstellungen.
  *
- * Zuerst wird `mqtt-config.local.json` gelesen, danach `mqtt-config.json`.
- * So lassen sich Host, Port und Topic ohne erneutes Bauen ändern.
+ * @param storage optionale Storage-Implementierung
+ * @returns gespeicherte Einstellungen oder `null`
+ */
+export function loadStoredMqttSettings(storage?: StorageLike): MqttSettings | null {
+	const resolved = resolveStorage(storage);
+	if (!resolved) {
+		return null;
+	}
+
+	const raw = resolved.getItem(MQTT_SETTINGS_STORAGE_KEY);
+	if (!raw) {
+		return null;
+	}
+
+	try {
+		return parseMqttConfig(JSON.parse(raw));
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Speichert Broker-Einstellungen im Browser.
+ *
+ * @param settings aktuelle Einstellungen
+ * @param storage optionale Storage-Implementierung
+ */
+export function saveMqttSettings(settings: MqttSettings, storage?: StorageLike): void {
+	const resolved = resolveStorage(storage);
+	if (!resolved) {
+		return;
+	}
+	resolved.setItem(MQTT_SETTINGS_STORAGE_KEY, JSON.stringify(parseMqttConfig(settings)));
+}
+
+/**
+ * Lädt die MQTT-Broker-Daten zur Laufzeit.
+ *
+ * Zuerst gelten im Browser gespeicherte Werte aus den Einstellungen.
+ * Fehlen diese, wird `mqtt-config.local.json` und danach `mqtt-config.json` gelesen.
  *
  * @param fetchFn optionale Fetch-Funktion, überschreibbar in Tests
+ * @param storage optionale Storage-Implementierung, überschreibbar in Tests
  * @returns geladene oder Standard-Einstellungen
  */
-export async function loadMqttConfig(fetchFn: typeof fetch = fetch): Promise<MqttSettings> {
+export async function loadMqttConfig(
+	fetchFn: typeof fetch = fetch,
+	storage?: StorageLike
+): Promise<MqttSettings> {
+	const storedSettings = loadStoredMqttSettings(storage);
+	if (storedSettings) {
+		return storedSettings;
+	}
+
 	const localConfig = await fetchMqttConfig(MQTT_LOCAL_CONFIG_URL, fetchFn);
 	if (localConfig) {
 		return localConfig;
