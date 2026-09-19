@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.hivemq.client.mqtt.MqttClient
+import com.hivemq.client.mqtt.MqttGlobalPublishFilter
 import com.hivemq.client.mqtt.lifecycle.MqttDisconnectSource
 import com.hivemq.client.mqtt.mqtt3.Mqtt3AsyncClient
 import com.hivemq.client.mqtt.mqtt3.message.connect.connack.Mqtt3ConnAck
@@ -104,6 +105,7 @@ class MqttClientWrapper(
                 isConnected.set(true)
                 hasBeenConnected.set(true)
                 stopWaitTicker()
+                // Subscribe ohne extra Callback; der Empfang hängt an registerSinglePublishCallback().
                 lifecycleOwner.lifecycleScope.launch {
                     subscribe(topic)
                 }
@@ -132,6 +134,31 @@ class MqttClientWrapper(
         }
 
         client = builder.buildAsync()
+        registerSinglePublishCallback()
+    }
+
+    /**
+     * Registriert genau einen Empfangs-Callback für alle abonnierten Topics.
+     * Ein erneutes Subscribe nach Reconnect darf keinen weiteren Callback anlegen,
+     * sonst kommt dieselbe Nachricht mehrfach in der App an.
+     */
+    private fun registerSinglePublishCallback() {
+        client?.publishes(MqttGlobalPublishFilter.SUBSCRIBED) { publish: Mqtt3Publish ->
+            if (stopped.get()) {
+                return@publishes
+            }
+            val payloadBytes = publish.payload
+                .map { buffer ->
+                    val bytes = ByteArray(buffer.remaining())
+                    buffer.get(bytes)
+                    bytes
+                }
+                .orElse(ByteArray(0))
+            val message = String(payloadBytes, StandardCharsets.UTF_8)
+            lifecycleOwner.lifecycleScope.launch {
+                onMessage(message)
+            }
+        }
     }
 
     /**
@@ -167,7 +194,7 @@ class MqttClientWrapper(
     }
 
     /**
-     * Abonniert ein Topic und leitet eingehende Payloads an [onMessage] weiter.
+     * Abonniert ein Topic erneut, ohne einen weiteren Callback zu registrieren.
      *
      * @param topic MQTT-Topic-Filter
      */
@@ -179,21 +206,6 @@ class MqttClientWrapper(
             client?.subscribeWith()
                 ?.topicFilter(topic)
                 ?.qos(com.hivemq.client.mqtt.datatypes.MqttQos.AT_LEAST_ONCE)
-                ?.callback { publish: Mqtt3Publish ->
-                    val payloadBytes = publish.payload
-                        .map { buffer ->
-                            val bytes = ByteArray(buffer.remaining())
-                            buffer.get(bytes)
-                            bytes
-                        }
-                        .orElse(ByteArray(0))
-
-                    val message = String(payloadBytes, StandardCharsets.UTF_8)
-
-                    lifecycleOwner.lifecycleScope.launch {
-                        onMessage(message)
-                    }
-                }
                 ?.send()
                 ?.await()
             emitPhase(ConnectionPhase.ACTIVE)
