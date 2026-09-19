@@ -126,21 +126,21 @@ Die Mosquitto-Konfigurationsdatei (`mosquitto/config/mosquitto.conf`) enthält t
 
 ### Beschreibung
 
-React-basierte Webanwendung zum Senden von Alarmmeldungen über MQTT mittels Websockets. Bietet eine benutzerfreundliche Schnittstelle zum Konfigurieren der Verbindungseinstellungen und Senden von Alarmbenachrichtigungen.
+SvelteKit-Webanwendung zum Senden von Alarmmeldungen über MQTT mittels Websockets.
 
 ### Konfiguration
 
-Das Frontend verwendet die folgenden Standardeinstellungen:
+Die Broker-Daten stehen in `AlarmAppFrontend/static/mqtt-config.json` und werden zur Laufzeit gelesen (kein Rebuild). Optionale lokale Überschreibungen liegen in `mqtt-config.local.json` (Vorlage: `mqtt-config.local.json.example`).
 
 | Einstellung | Standardwert | Beschreibung |
 |-------------|---------------|--------------|
-| `brokerUrl` | `ws://localhost:9001` | WebSocket-URL zum MQTT-Broker |
-| `topic` | `JF/Alarm` | MQTT-Topic für Alarmmeldungen |
-| `username` | (leer) | Optionaler MQTT-Authentifizierungsbenutzername |
-| `password` | (leer) | Optionales MQTT-Authentifizierungspasswort |
-| `alarmstichwort` | (leer) | Alarmstichwort für die Alarmmeldung |
-| `adresse` | (leer) | Adresse zu der Alarmierung |
-| `infos` | (leer) | Weitere Informationen zur Alarmmeldung |
+| `brokerHost` | `localhost` | Hostname des MQTT-Brokers |
+| `brokerPort` | `9001` | WebSocket-Port |
+| `brokerPath` | `/mqtt` | WebSocket-Pfad |
+| `useSsl` | `false` | `wss://` statt `ws://` |
+| `mqttTopic` | `JF/Alarm` | MQTT-Topic für Alarmmeldungen |
+| `user` | `alarm` | Optionaler MQTT-Benutzername |
+| `password` | `alarm` | Optionales MQTT-Passwort |
 
 ### Ausführungsbefehle
 
@@ -149,16 +149,16 @@ Das Frontend verwendet die folgenden Standardeinstellungen:
 cd AlarmAppFrontend
 
 # Abhängigkeiten installieren
-npm install
+pnpm install
 
 # Entwicklungsserver starten
-npm run dev
+pnpm dev
 
 # Für Produktion bauen
-npm run build
+pnpm build
 
 # Produktions-Build anzeigen
-npm run preview
+pnpm preview
 ```
 
 ## MessageSender

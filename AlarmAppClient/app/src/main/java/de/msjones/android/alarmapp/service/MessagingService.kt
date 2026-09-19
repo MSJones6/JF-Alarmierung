@@ -10,6 +10,7 @@ import de.msjones.android.alarmapp.event.MessagingEvent
 import de.msjones.android.alarmapp.event.MessagingEventBus
 import de.msjones.android.alarmapp.util.ConnectionPhase
 import de.msjones.android.alarmapp.util.ConnectionStatusTexts
+import de.msjones.android.alarmapp.util.IncomingAlarmDeduper
 import de.msjones.android.alarmapp.util.NotificationHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,6 +29,7 @@ class MessagingService : LifecycleService() {
     private val connectionJobs = ConcurrentHashMap<String, Job>()
     private val connectionStatuses = ConcurrentHashMap<String, String>()
     private val connectionMessages = ConcurrentHashMap<String, String>()
+    private val incomingAlarmDeduper = IncomingAlarmDeduper()
 
     companion object {
         const val EXTRA_HOST = "host"
@@ -251,10 +253,14 @@ class MessagingService : LifecycleService() {
 
     /**
      * Verarbeitet eine eingehende MQTT-Nachricht und benachrichtigt UI sowie Notification.
+     * Identische Payloads, die kurz nacheinander mehrfach eintreffen, werden verworfen.
      *
      * @param msg Rohpayload vom Broker
      */
     private fun handleIncomingMessage(msg: String) {
+        if (!incomingAlarmDeduper.accept(msg)) {
+            return
+        }
         val parsed = AlarmMessageParser.parse(msg)
         helper.showIncomingMessage(parsed.keyword, parsed.location, parsed.extras)
         MessagingEventBus.tryEmit(
