@@ -7,6 +7,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -19,8 +20,8 @@ public class AlarmEntity {
 	@Id
 	private UUID id;
 
-	@Column(name = "scheduled_at", nullable = false, length = 32)
-	private String scheduledAt;
+	@Column(name = "scheduled_at", nullable = false)
+	private LocalDateTime scheduledAt;
 
 	@Column(name = "connection_name", nullable = false)
 	private String connectionName;
@@ -89,20 +90,20 @@ public class AlarmEntity {
 	}
 
 	/**
-	 * Liefert den geplanten Zeitpunkt im Frontend-Format.
+	 * Liefert den geplanten Zeitpunkt ohne Zeitzone.
 	 *
-	 * @return lokaler ISO-Zeitstempel
+	 * @return lokaler Zeitpunkt
 	 */
-	public String getScheduledAt() {
+	public LocalDateTime getScheduledAt() {
 		return scheduledAt;
 	}
 
 	/**
 	 * Setzt den geplanten Zeitpunkt.
 	 *
-	 * @param scheduledAt lokaler ISO-Zeitstempel
+	 * @param scheduledAt lokaler Zeitpunkt
 	 */
-	public void setScheduledAt(String scheduledAt) {
+	public void setScheduledAt(LocalDateTime scheduledAt) {
 		this.scheduledAt = scheduledAt;
 	}
 

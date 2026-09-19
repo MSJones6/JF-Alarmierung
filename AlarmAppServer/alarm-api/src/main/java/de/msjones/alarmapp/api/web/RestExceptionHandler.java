@@ -38,4 +38,15 @@ public class RestExceptionHandler {
 	public ResponseEntity<Map<String, String>> handleNotFound(NotFoundException exception) {
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", exception.getMessage()));
 	}
+
+	/**
+	 * Wandelt MQTT- und Versandfehler in HTTP 502 um.
+	 *
+	 * @param exception Fachfehler
+	 * @return Fehlerkörper
+	 */
+	@ExceptionHandler(IllegalStateException.class)
+	public ResponseEntity<Map<String, String>> handleIllegalState(IllegalStateException exception) {
+		return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("message", exception.getMessage()));
+	}
 }

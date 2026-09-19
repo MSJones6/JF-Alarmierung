@@ -16,6 +16,7 @@ import de.msjones.alarmapp.api.dto.AlarmRequest;
 import de.msjones.alarmapp.api.dto.AlarmResponse;
 import de.msjones.alarmapp.api.service.AlarmService;
 import de.msjones.alarmapp.api.service.AlarmStreamService;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -49,7 +50,7 @@ class AlarmControllerTest {
 	private AlarmResponse sample() {
 		return new AlarmResponse(
 				UUID.fromString("00000000-0000-0000-0000-000000000003"),
-				"2025-04-24T14:30:15",
+				LocalDateTime.of(2025, 4, 24, 14, 30, 15),
 				"Standard",
 				"Turnhalle",
 				"Feueralarm",
@@ -86,6 +87,26 @@ class AlarmControllerTest {
 								"""))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.keyword").value("Feueralarm"));
+	}
+
+	@Test
+	void createsAlarmWithMinutePrecisionTimestamp() throws Exception {
+		when(alarmService.create(any(AlarmRequest.class))).thenReturn(sample());
+
+		mockMvc.perform(post("/api/alarms")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+									"scheduledAt": "2025-04-24T14:30",
+									"connection": "Standard",
+									"location": "Turnhalle",
+									"keyword": "Feueralarm",
+									"info": "Rauchentwicklung",
+									"status": "planned"
+								}
+								"""))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.scheduledAt").value("2025-04-24T14:30:15"));
 	}
 
 	@Test

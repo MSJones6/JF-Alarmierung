@@ -117,7 +117,7 @@ public final class EntityMapper {
 	 * @param request Schreibdaten
 	 */
 	public static void apply(AlarmEntity entity, AlarmRequest request) {
-		entity.setScheduledAt(request.scheduledAt().trim());
+		entity.setScheduledAt(request.scheduledAt());
 		entity.setConnectionName(request.connection().trim());
 		entity.setLocation(request.location().trim());
 		entity.setKeyword(request.keyword().trim());

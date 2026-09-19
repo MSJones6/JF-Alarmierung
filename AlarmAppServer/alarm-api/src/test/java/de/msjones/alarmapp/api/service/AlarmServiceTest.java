@@ -2,6 +2,7 @@ package de.msjones.alarmapp.api.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -9,6 +10,7 @@ import de.msjones.alarmapp.api.domain.AlarmEntity;
 import de.msjones.alarmapp.api.dto.AlarmRequest;
 import de.msjones.alarmapp.api.dto.AlarmResponse;
 import de.msjones.alarmapp.api.repository.AlarmRepository;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 
 /**
  * Prüft das Anlegen und Aktualisieren von Alarmierungen.
@@ -31,6 +34,15 @@ class AlarmServiceTest {
 	@Mock
 	private AlarmStreamService alarmStreamService;
 
+	@Mock
+	private AlarmDispatchService alarmDispatchService;
+
+	@Mock
+	private ObjectProvider<AlarmDispatchScheduler> alarmDispatchSchedulerProvider;
+
+	@Mock
+	private AlarmDispatchScheduler alarmDispatchScheduler;
+
 	private AlarmService alarmService;
 
 	/**
@@ -38,7 +50,15 @@ class AlarmServiceTest {
 	 */
 	@BeforeEach
 	void setUp() {
-		alarmService = new AlarmService(alarmRepository, alarmStreamService);
+		org.mockito.Mockito.lenient()
+				.when(alarmDispatchSchedulerProvider.getIfAvailable())
+				.thenReturn(alarmDispatchScheduler);
+		alarmService = new AlarmService(
+				alarmRepository,
+				alarmStreamService,
+				alarmDispatchService,
+				alarmDispatchSchedulerProvider
+		);
 	}
 
 	@Test
@@ -46,7 +66,7 @@ class AlarmServiceTest {
 		when(alarmRepository.save(any(AlarmEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
 		AlarmResponse created = alarmService.create(new AlarmRequest(
-				"2025-04-24T14:30:15",
+				LocalDateTime.of(2025, 4, 24, 14, 30, 15),
 				"Host Nord",
 				"Turnhalle",
 				"Warnung",
@@ -60,6 +80,24 @@ class AlarmServiceTest {
 		verify(alarmRepository).save(captor.capture());
 		assertThat(captor.getValue().getLocation()).isEqualTo("Turnhalle");
 		verify(alarmStreamService).send("created", created);
+		verify(alarmDispatchService, never()).publishFor(any());
+		verify(alarmDispatchScheduler).reschedule();
+	}
+
+	@Test
+	void createSentAlarmPublishesMqtt() {
+		when(alarmRepository.save(any(AlarmEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		alarmService.create(new AlarmRequest(
+				LocalDateTime.of(2025, 4, 24, 14, 30, 15),
+				"Standard",
+				"Turnhalle",
+				"Feueralarm",
+				"Rauch",
+				"sent"
+		));
+
+		verify(alarmDispatchService).publishFor(any(AlarmEntity.class));
 	}
 
 	@Test
@@ -71,7 +109,7 @@ class AlarmServiceTest {
 		when(alarmRepository.save(any(AlarmEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
 		AlarmResponse updated = alarmService.update(id, new AlarmRequest(
-				"2025-04-24T14:30:15",
+				LocalDateTime.of(2025, 4, 24, 14, 30, 15),
 				"Standard",
 				"Turnhalle",
 				"Feueralarm",
@@ -80,6 +118,7 @@ class AlarmServiceTest {
 		));
 
 		assertThat(updated.status()).isEqualTo("sent");
+		verify(alarmDispatchService).publishFor(entity);
 		verify(alarmStreamService).send("updated", updated);
 	}
 
@@ -87,7 +126,7 @@ class AlarmServiceTest {
 	void findAllMapsEntities() {
 		AlarmEntity entity = new AlarmEntity();
 		entity.setId(UUID.randomUUID());
-		entity.setScheduledAt("2025-04-24T14:30:15");
+		entity.setScheduledAt(LocalDateTime.of(2025, 4, 24, 14, 30, 15));
 		entity.setConnectionName("Standard");
 		entity.setLocation("Gebäude 3");
 		entity.setKeyword("Info");

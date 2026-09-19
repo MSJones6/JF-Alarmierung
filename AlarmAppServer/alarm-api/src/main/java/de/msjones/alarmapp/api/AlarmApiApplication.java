@@ -2,11 +2,13 @@ package de.msjones.alarmapp.api;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Startklasse der REST-API für Connections, Alarmstichworte und Alarmierungen.
  */
 @SpringBootApplication
+@EnableScheduling
 public class AlarmApiApplication {
 
 	/**

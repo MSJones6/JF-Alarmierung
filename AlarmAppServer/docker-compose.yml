@@ -58,9 +58,12 @@ services:
       SPRING_DATASOURCE_USERNAME: alarm
       SPRING_DATASOURCE_PASSWORD: alarm
       ALARM_CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      ALARM_MQTT_HOST_OVERRIDE: mosquitto
     depends_on:
       postgres:
         condition: service_healthy
+      mosquitto:
+        condition: service_started
     networks:
       - msj-jf-alarm-net
 
