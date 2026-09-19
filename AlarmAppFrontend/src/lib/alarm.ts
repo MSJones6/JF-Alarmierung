@@ -1,4 +1,4 @@
-import type { AlarmDraft, AlarmFilter, AlarmItem, AlarmSortKey, SortDirection } from './types';
+import type { AlarmDraft, AlarmFilter, AlarmItem, AlarmSortKey, KeywordOption, SortDirection } from './types';
 
 /** Standard-Einsatzorte für ältere Formularwerte. */
 export const TOPICS = ['Gebäude 3', 'IT-Systeme', 'Allgemein', 'System', 'Eingang'];
@@ -6,27 +6,102 @@ export const TOPICS = ['Gebäude 3', 'IT-Systeme', 'Allgemein', 'System', 'Einga
 /** Standard-Alarmstichworte für das Dropdown. */
 export const KEYWORDS = ['Feueralarm', 'Warnung', 'Info', 'Test', 'Sicherheit'];
 
+/** Standardfarbe für unbekannte Alarmstichworte. */
+export const DEFAULT_KEYWORD_COLOR = '#64748b';
+
+/** Bisherige Badge-Farben der Standard-Stichworte. */
+export const DEFAULT_KEYWORD_COLORS: Record<string, string> = {
+	Feueralarm: '#f43f5e',
+	Warnung: '#f97316',
+	Info: '#10b981',
+	Test: '#0ea5e9',
+	Sicherheit: '#8b5cf6'
+};
+
+/** Standard-Alarmstichworte inklusive Badge-Farbe. */
+export const DEFAULT_KEYWORD_OPTIONS: KeywordOption[] = KEYWORDS.map((name) => ({
+	name,
+	color: DEFAULT_KEYWORD_COLORS[name] ?? DEFAULT_KEYWORD_COLOR
+}));
+
+/** Erlaubtes Hex-Format für Badge-Farben. */
+const HEX_COLOR = /^#([0-9a-fA-F]{6})$/;
+
 /**
- * Liefert die CSS-Klassen für die farbige Stichwort-Plakette.
+ * Normalisiert eine Hex-Farbe auf `#rrggbb`.
  *
- * @param keyword gewähltes Alarmstichwort
- * @returns Tailwind-Klassen für Hintergrund und Text
+ * @param color Rohwert
+ * @returns gültige Farbe oder die Standardfarbe
  */
-export function getKeywordBadgeClass(keyword: string): string {
-	switch (keyword) {
-		case 'Feueralarm':
-			return 'bg-rose-100 text-rose-500';
-		case 'Warnung':
-			return 'bg-orange-100 text-orange-500';
-		case 'Info':
-			return 'bg-emerald-100 text-emerald-500';
-		case 'Test':
-			return 'bg-sky-100 text-sky-500';
-		case 'Sicherheit':
-			return 'bg-violet-100 text-violet-500';
-		default:
-			return 'bg-slate-100 text-slate-500';
+export function normalizeKeywordColor(color: string | undefined | null): string {
+	if (typeof color === 'string' && HEX_COLOR.test(color.trim())) {
+		return color.trim().toLowerCase();
 	}
+	return DEFAULT_KEYWORD_COLOR;
+}
+
+/**
+ * Liefert die Badge-Farbe eines Stichworts.
+ *
+ * @param keyword Alarmstichwort
+ * @param color optionale gespeicherte Farbe
+ * @returns Hex-Farbe
+ */
+export function getKeywordColor(keyword: string, color?: string | null): string {
+	if (color) {
+		return normalizeKeywordColor(color);
+	}
+	return DEFAULT_KEYWORD_COLORS[keyword] ?? DEFAULT_KEYWORD_COLOR;
+}
+
+/**
+ * Mischt eine Hex-Farbe mit Weiß, analog zu Tailwind `*-100` bei `*-500`.
+ *
+ * @param hex Ausgangsfarbe
+ * @param whiteRatio Anteil Weiß zwischen 0 und 1
+ * @returns aufgehellte Hex-Farbe
+ */
+export function mixHexWithWhite(hex: string, whiteRatio = 0.85): string {
+	const normalized = normalizeKeywordColor(hex);
+	const channels = [1, 3, 5].map((offset) => parseInt(normalized.slice(offset, offset + 2), 16));
+	const mix = (channel: number) => Math.round(channel + (255 - channel) * whiteRatio);
+	return `#${channels.map((channel) => mix(channel).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Liefert Inline-Styles für die farbige Stichwort-Plakette.
+ *
+ * @param color gewählte Badge-Farbe
+ * @returns Text- und Hintergrundfarbe
+ */
+export function getKeywordBadgeStyle(color: string): { color: string; backgroundColor: string } {
+	const textColor = normalizeKeywordColor(color);
+	return {
+		color: textColor,
+		backgroundColor: mixHexWithWhite(textColor)
+	};
+}
+
+/**
+ * Liefert nur die Namen einer Stichwortliste.
+ *
+ * @param keywords Stichworte mit Farbe
+ * @returns Namen in derselben Reihenfolge
+ */
+export function getKeywordNames(keywords: KeywordOption[]): string[] {
+	return keywords.map((keyword) => keyword.name);
+}
+
+/**
+ * Sucht die Farbe zu einem Stichwortnamen.
+ *
+ * @param keywords bekannte Stichworte
+ * @param keyword gesuchter Name
+ * @returns gespeicherte oder Standardfarbe
+ */
+export function findKeywordColor(keywords: KeywordOption[], keyword: string): string {
+	const match = keywords.find((item) => item.name === keyword);
+	return getKeywordColor(keyword, match?.color);
 }
 
 /**

@@ -1,9 +1,8 @@
-import { KEYWORDS } from './alarm';
+import { DEFAULT_KEYWORD_OPTIONS, getKeywordColor } from './alarm';
 import { DEFAULT_MQTT_SETTINGS } from './mqtt';
-import { normalizeOptions } from './option-list';
 import { resolveStorage } from './storage';
 import { createTopicConnection } from './topic-connection';
-import type { AppSettings, MqttSettings, StorageLike, TopicConnection } from './types';
+import type { AppSettings, KeywordOption, MqttSettings, StorageLike, TopicConnection } from './types';
 
 /** Öffentliche URL der mitgelieferten Standardkonfiguration. */
 export const MQTT_CONFIG_URL = '/mqtt-config.json';
@@ -23,7 +22,7 @@ export const DEFAULT_TOPIC_CONNECTION: TopicConnection = createTopicConnection({
 
 /** Vollständige Standard-Einstellungen inkl. Connections. */
 export const DEFAULT_APP_SETTINGS: AppSettings = {
-	keywords: [...KEYWORDS],
+	keywords: DEFAULT_KEYWORD_OPTIONS.map((keyword) => ({ ...keyword })),
 	topics: [{ ...DEFAULT_TOPIC_CONNECTION }]
 };
 
@@ -90,7 +89,7 @@ export function parseAppSettings(raw: unknown): AppSettings {
 	const mqttFallback = parseMqttConfig(data);
 
 	return {
-		keywords: parseOptionList(data.keywords, KEYWORDS),
+		keywords: parseKeywords(data.keywords),
 		topics: parseTopicConnections(data.topics, mqttFallback)
 	};
 }
@@ -113,17 +112,66 @@ function readText(value: unknown, fallback: string): string {
 }
 
 /**
- * Liest eine Auswahlliste oder fällt auf die Standardwerte zurück.
+ * Liest Alarmstichworte inklusive Farbe oder fällt auf die Standardwerte zurück.
+ *
+ * Alte Namenslisten ohne Farbe werden mit den bisherigen Badge-Farben ergänzt.
  *
  * @param value Rohwert aus JSON
- * @param fallback Standardliste
- * @returns bereinigte Liste
+ * @returns bereinigte Stichwortliste
  */
-function parseOptionList(value: unknown, fallback: string[]): string[] {
-	if (!Array.isArray(value)) {
-		return [...fallback];
+function parseKeywords(value: unknown): KeywordOption[] {
+	if (!Array.isArray(value) || value.length === 0) {
+		return DEFAULT_KEYWORD_OPTIONS.map((keyword) => ({ ...keyword }));
 	}
-	return normalizeOptions(value);
+
+	const unique: KeywordOption[] = [];
+	const seen = new Set<string>();
+
+	for (const item of value) {
+		const parsed = parseKeywordOption(item);
+		if (!parsed) {
+			continue;
+		}
+		const key = parsed.name.toLocaleLowerCase('de-DE');
+		if (seen.has(key)) {
+			continue;
+		}
+		seen.add(key);
+		unique.push(parsed);
+	}
+
+	if (unique.length === 0) {
+		return DEFAULT_KEYWORD_OPTIONS.map((keyword) => ({ ...keyword }));
+	}
+	return unique;
+}
+
+/**
+ * Wandelt einen Listen-Eintrag in ein Alarmstichwort mit Farbe um.
+ *
+ * @param raw Rohwert aus JSON
+ * @returns Stichwort oder `null`
+ */
+function parseKeywordOption(raw: unknown): KeywordOption | null {
+	if (typeof raw === 'string') {
+		const name = raw.trim();
+		if (!name) {
+			return null;
+		}
+		return { name, color: getKeywordColor(name) };
+	}
+	if (raw === null || typeof raw !== 'object') {
+		return null;
+	}
+	const data = raw as Record<string, unknown>;
+	const name = typeof data.name === 'string' ? data.name.trim() : '';
+	if (!name) {
+		return null;
+	}
+	return {
+		name,
+		color: getKeywordColor(name, typeof data.color === 'string' ? data.color : undefined)
+	};
 }
 
 /**

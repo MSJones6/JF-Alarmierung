@@ -51,9 +51,15 @@ export type TopicConnection = MqttSettings & {
 	name: string;
 };
 
+/** Auswählbares Alarmstichwort mit Badge-Farbe. */
+export type KeywordOption = {
+	name: string;
+	color: string;
+};
+
 /** App-Einstellungen: Stichworte und Connections. */
 export type AppSettings = {
-	keywords: string[];
+	keywords: KeywordOption[];
 	topics: TopicConnection[];
 };
 

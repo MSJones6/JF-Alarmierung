@@ -7,13 +7,22 @@ import de.msjones.alarmapp.api.dto.AlarmRequest;
 import de.msjones.alarmapp.api.dto.AlarmResponse;
 import de.msjones.alarmapp.api.dto.ConnectionRequest;
 import de.msjones.alarmapp.api.dto.ConnectionResponse;
+import de.msjones.alarmapp.api.dto.KeywordRequest;
 import de.msjones.alarmapp.api.dto.KeywordResponse;
+import java.util.Locale;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * Wandelt JPA-Entitäten in API-Objekte um und zurück.
  */
 public final class EntityMapper {
+
+	/** Standardfarbe für unbekannte oder fehlende Stichwortfarben. */
+	public static final String DEFAULT_KEYWORD_COLOR = "#64748b";
+
+	/** Erlaubtes Hex-Format für Badge-Farben. */
+	private static final Pattern KEYWORD_COLOR_PATTERN = Pattern.compile("^#[0-9A-Fa-f]{6}$");
 
 	/**
 	 * Verhindert die Instanziierung.
@@ -67,7 +76,20 @@ public final class EntityMapper {
 	 * @return API-Antwort
 	 */
 	public static KeywordResponse toResponse(KeywordEntity entity) {
-		return new KeywordResponse(entity.getId(), entity.getName());
+		return new KeywordResponse(entity.getId(), entity.getName(), entity.getColor());
+	}
+
+	/**
+	 * Übernimmt Schreibdaten in ein Stichwort.
+	 *
+	 * @param entity Zielentität
+	 * @param request Schreibdaten
+	 * @param sortOrder Sortierindex
+	 */
+	public static void apply(KeywordEntity entity, KeywordRequest request, int sortOrder) {
+		entity.setName(request.name().trim());
+		entity.setColor(normalizeKeywordColor(request.color()));
+		entity.setSortOrder(sortOrder);
 	}
 
 	/**
@@ -125,5 +147,22 @@ public final class EntityMapper {
 			return fallback;
 		}
 		return value.trim();
+	}
+
+	/**
+	 * Normalisiert eine Stichwortfarbe auf `#rrggbb`.
+	 *
+	 * @param color Rohwert
+	 * @return gültige Hex-Farbe
+	 */
+	public static String normalizeKeywordColor(String color) {
+		if (color == null || color.isBlank()) {
+			return DEFAULT_KEYWORD_COLOR;
+		}
+		String trimmed = color.trim();
+		if (!KEYWORD_COLOR_PATTERN.matcher(trimmed).matches()) {
+			return DEFAULT_KEYWORD_COLOR;
+		}
+		return trimmed.toLowerCase(Locale.ROOT);
 	}
 }

@@ -1,3 +1,6 @@
+import type { KeywordOption } from './types';
+import { getKeywordColor, normalizeKeywordColor } from './alarm';
+
 /**
  * Hilfsfunktionen für pflegbare Auswahllisten in den Einstellungen.
  */
@@ -63,4 +66,60 @@ export function addUniqueOption(items: string[], raw: string): string[] | null {
  */
 export function removeOption(items: string[], value: string): string[] {
 	return items.filter((item) => item !== value);
+}
+
+/**
+ * Fügt ein neues Alarmstichwort mit Farbe hinzu, sofern der Name noch frei ist.
+ *
+ * @param items aktuelle Liste
+ * @param raw neuer Name
+ * @param color gewählte Badge-Farbe
+ * @returns aktualisierte Liste oder `null`, wenn nichts übernommen wurde
+ */
+export function addUniqueKeyword(
+	items: KeywordOption[],
+	raw: string,
+	color: string
+): KeywordOption[] | null {
+	const name = raw.trim();
+	if (!name) {
+		return null;
+	}
+
+	const exists = items.some(
+		(item) => item.name.toLocaleLowerCase('de-DE') === name.toLocaleLowerCase('de-DE')
+	);
+	if (exists) {
+		return null;
+	}
+
+	return [...items, { name, color: getKeywordColor(name, color) }];
+}
+
+/**
+ * Entfernt ein Alarmstichwort anhand des Namens.
+ *
+ * @param items aktuelle Liste
+ * @param name zu löschendes Stichwort
+ * @returns Liste ohne den Eintrag
+ */
+export function removeKeyword(items: KeywordOption[], name: string): KeywordOption[] {
+	return items.filter((item) => item.name !== name);
+}
+
+/**
+ * Aktualisiert die Badge-Farbe eines Alarmstichworts.
+ *
+ * @param items aktuelle Liste
+ * @param name zu änderndes Stichwort
+ * @param color neue Farbe
+ * @returns Liste mit aktualisierter Farbe
+ */
+export function updateKeywordColor(
+	items: KeywordOption[],
+	name: string,
+	color: string
+): KeywordOption[] {
+	const normalized = normalizeKeywordColor(color);
+	return items.map((item) => (item.name === name ? { ...item, color: normalized } : item));
 }

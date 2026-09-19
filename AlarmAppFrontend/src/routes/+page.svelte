@@ -8,6 +8,7 @@
 	import SettingsDialog from '$lib/components/SettingsDialog.svelte';
 	import {
 		buildMqttPayload,
+		getKeywordNames,
 		validateAlarmDraft
 	} from '$lib/alarm';
 	import {
@@ -48,6 +49,7 @@
 	let isSending = $state(false);
 
 	const connectionNames = $derived(getTopicNames(settings.topics));
+	const keywordNames = $derived(getKeywordNames(settings.keywords));
 	const selectedConnection = $derived(findTopicConnection(settings.topics, draft.connection));
 
 	/**
@@ -58,7 +60,7 @@
 	 */
 	function parseCopy(source: AppSettings): AppSettings {
 		return {
-			keywords: [...source.keywords],
+			keywords: source.keywords.map((keyword) => ({ ...keyword })),
 			topics: source.topics.map((topic) => ({ ...topic }))
 		};
 	}
@@ -70,8 +72,8 @@
 		if (!connectionNames.includes(draft.connection)) {
 			draft.connection = connectionNames[0] ?? '';
 		}
-		if (!settings.keywords.includes(draft.keyword)) {
-			draft.keyword = settings.keywords[0] ?? '';
+		if (!keywordNames.includes(draft.keyword)) {
+			draft.keyword = keywordNames[0] ?? '';
 		}
 	});
 
@@ -126,8 +128,8 @@
 		if (!connectionNames.includes(draft.connection)) {
 			draft.connection = connectionNames[0] ?? '';
 		}
-		if (!settings.keywords.includes(draft.keyword)) {
-			draft.keyword = settings.keywords[0] ?? '';
+		if (!keywordNames.includes(draft.keyword)) {
+			draft.keyword = keywordNames[0] ?? '';
 		}
 	}
 
@@ -164,7 +166,7 @@
 		editingId = null;
 		draft = getDefaultDraft({
 			connections: connectionNames,
-			keywords: settings.keywords
+			keywords: keywordNames
 		});
 	}
 
@@ -273,7 +275,7 @@
 	<NewAlarmCard
 		bind:draft
 		connections={connectionNames}
-		keywords={settings.keywords}
+		keywords={keywordNames}
 		isEditing={editingId !== null}
 		{isSending}
 		{status}
@@ -284,6 +286,7 @@
 	/>
 	<PlannedAlarmsCard
 		{alarms}
+		keywords={settings.keywords}
 		bind:filter
 		bind:sortKey
 		bind:sortDirection

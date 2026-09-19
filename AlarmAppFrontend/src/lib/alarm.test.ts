@@ -6,7 +6,9 @@ import {
 	filterAlarms,
 	formatGermanDateTime,
 	getFilterCountLabel,
-	getKeywordBadgeClass,
+	getKeywordBadgeStyle,
+	getKeywordColor,
+	mixHexWithWhite,
 	sortAlarms,
 	toggleSort,
 	updateAlarm,
@@ -186,9 +188,12 @@ describe('Alarmlisten-Operationen', () => {
 });
 
 describe('Anzeigehilfen', () => {
-	it('liefert farbige Plakettenklassen', () => {
-		expect(getKeywordBadgeClass('Feueralarm')).toContain('rose');
-		expect(getKeywordBadgeClass('Unbekannt')).toContain('slate');
+	it('leitet Text- und Hintergrundfarbe aus der gewählten Farbe ab', () => {
+		expect(getKeywordColor('Feueralarm')).toBe('#f43f5e');
+		expect(getKeywordBadgeStyle('#f43f5e').color).toBe('#f43f5e');
+		expect(getKeywordBadgeStyle('#f43f5e').backgroundColor).toBe(mixHexWithWhite('#f43f5e'));
+		expect(getKeywordColor('Unbekannt')).toBe('#64748b');
+		expect(mixHexWithWhite('#000000', 0.5)).toBe('#808080');
 	});
 
 	it('bildet den Zählertext zum aktiven Filter', () => {

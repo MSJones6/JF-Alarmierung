@@ -21,12 +21,21 @@ public class DataInitializer implements ApplicationRunner {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(DataInitializer.class);
 
-	private static final List<String> DEFAULT_KEYWORDS = List.of(
-			"Feueralarm",
-			"Warnung",
-			"Info",
-			"Test",
-			"Sicherheit"
+	/**
+	 * Standard-Alarmstichworte mit den bisherigen Badge-Farben.
+	 *
+	 * @param name Anzeigename
+	 * @param color Badge-Farbe
+	 */
+	private record KeywordSeed(String name, String color) {
+	}
+
+	private static final List<KeywordSeed> DEFAULT_KEYWORDS = List.of(
+			new KeywordSeed("Feueralarm", "#f43f5e"),
+			new KeywordSeed("Warnung", "#f97316"),
+			new KeywordSeed("Info", "#10b981"),
+			new KeywordSeed("Test", "#0ea5e9"),
+			new KeywordSeed("Sicherheit", "#8b5cf6")
 	);
 
 	private final ConnectionRepository connectionRepository;
@@ -56,10 +65,11 @@ public class DataInitializer implements ApplicationRunner {
 	public void run(ApplicationArguments args) {
 		if (keywordRepository.count() == 0) {
 			int sortOrder = 0;
-			for (String name : DEFAULT_KEYWORDS) {
+			for (KeywordSeed seed : DEFAULT_KEYWORDS) {
 				KeywordEntity keyword = new KeywordEntity();
 				keyword.setId(UUID.randomUUID());
-				keyword.setName(name);
+				keyword.setName(seed.name());
+				keyword.setColor(seed.color());
 				keyword.setSortOrder(sortOrder++);
 				keywordRepository.save(keyword);
 			}

@@ -5,7 +5,7 @@
 	 */
 	import { untrack } from 'svelte';
 	import X from '@lucide/svelte/icons/x';
-	import OptionListEditor from '$lib/components/OptionListEditor.svelte';
+	import KeywordListEditor from '$lib/components/KeywordListEditor.svelte';
 	import TopicConnectionsEditor from '$lib/components/TopicConnectionsEditor.svelte';
 	import { parseAppSettings } from '$lib/mqtt-config';
 	import type { AppSettings } from '$lib/types';
@@ -43,7 +43,7 @@
 	 */
 	function copySettings(source: AppSettings): AppSettings {
 		return {
-			keywords: [...source.keywords],
+			keywords: source.keywords.map((keyword) => ({ ...keyword })),
 			topics: source.topics.map((topic) => ({ ...topic }))
 		};
 	}
@@ -95,7 +95,7 @@
 				<TopicConnectionsEditor bind:topics={draft.topics} />
 
 				<section class="border-t border-slate-100 pt-5">
-					<OptionListEditor
+					<KeywordListEditor
 						title="Alarmstichworte"
 						placeholder="Neues Alarmstichwort"
 						bind:items={draft.keywords}

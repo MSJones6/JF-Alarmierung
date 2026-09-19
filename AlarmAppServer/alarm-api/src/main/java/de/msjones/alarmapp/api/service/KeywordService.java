@@ -50,8 +50,7 @@ public class KeywordService {
 	public KeywordResponse create(KeywordRequest request) {
 		KeywordEntity entity = new KeywordEntity();
 		entity.setId(UUID.randomUUID());
-		entity.setName(request.name().trim());
-		entity.setSortOrder(keywordRepository.findAllByOrderBySortOrderAscNameAsc().size());
+		EntityMapper.apply(entity, request, keywordRepository.findAllByOrderBySortOrderAscNameAsc().size());
 		return EntityMapper.toResponse(keywordRepository.save(entity));
 	}
 
@@ -66,30 +65,32 @@ public class KeywordService {
 	public KeywordResponse update(UUID id, KeywordRequest request) {
 		KeywordEntity entity = keywordRepository.findById(id)
 				.orElseThrow(() -> new NotFoundException("Alarmstichwort nicht gefunden."));
-		entity.setName(request.name().trim());
+		EntityMapper.apply(entity, request, entity.getSortOrder());
 		return EntityMapper.toResponse(keywordRepository.save(entity));
 	}
 
 	/**
 	 * Ersetzt die komplette Stichwortliste.
 	 *
-	 * @param names neue Namen in Anzeigereihenfolge
+	 * @param requests neue Stichworte in Anzeigereihenfolge
 	 * @return gespeicherte Stichworte
 	 */
 	@Transactional
-	public List<KeywordResponse> replaceAll(List<String> names) {
+	public List<KeywordResponse> replaceAll(List<KeywordRequest> requests) {
 		keywordRepository.deleteAllInBatch();
 		keywordRepository.flush();
 		List<KeywordEntity> saved = new ArrayList<>();
 		int sortOrder = 0;
-		for (String name : names) {
-			if (name == null || name.isBlank()) {
+		if (requests == null) {
+			return List.of();
+		}
+		for (KeywordRequest request : requests) {
+			if (request == null || request.name() == null || request.name().isBlank()) {
 				continue;
 			}
 			KeywordEntity entity = new KeywordEntity();
 			entity.setId(UUID.randomUUID());
-			entity.setName(name.trim());
-			entity.setSortOrder(sortOrder++);
+			EntityMapper.apply(entity, request, sortOrder++);
 			saved.add(keywordRepository.save(entity));
 		}
 		return saved.stream().map(EntityMapper::toResponse).toList();

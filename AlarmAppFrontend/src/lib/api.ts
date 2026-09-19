@@ -1,7 +1,8 @@
 /**
  * HTTP-Client für die Alarm-API unter AlarmAppServer.
  */
-import type { AlarmDraft, AlarmItem, AlarmStatus, AppSettings, TopicConnection } from './types';
+import { getKeywordColor } from './alarm';
+import type { AlarmDraft, AlarmItem, AlarmStatus, AppSettings, KeywordOption, TopicConnection } from './types';
 
 /** Basis-URL der REST-API, leer bedeutet gleicher Ursprung (Vite-Proxy). */
 export let apiBaseUrl = '';
@@ -55,11 +56,11 @@ export async function fetchAlarms(fetchFn: typeof fetch = fetch): Promise<AlarmI
 export async function fetchAppSettings(fetchFn: typeof fetch = fetch): Promise<AppSettings> {
 	const [topics, keywords] = await Promise.all([
 		readJson<TopicConnection[]>(fetchFn, '/api/connections'),
-		readJson<Array<{ name: string }>>(fetchFn, '/api/keywords')
+		readJson<KeywordOption[]>(fetchFn, '/api/keywords')
 	]);
 	return {
 		topics,
-		keywords: keywords.map((keyword) => keyword.name)
+		keywords: toKeywordOptions(keywords)
 	};
 }
 
@@ -76,11 +77,11 @@ export async function saveAppSettings(
 ): Promise<AppSettings> {
 	const [topics, keywords] = await Promise.all([
 		writeJson<TopicConnection[]>(fetchFn, '/api/connections', 'PUT', settings.topics),
-		writeJson<Array<{ name: string }>>(fetchFn, '/api/keywords', 'PUT', settings.keywords)
+		writeJson<KeywordOption[]>(fetchFn, '/api/keywords', 'PUT', settings.keywords)
 	]);
 	return {
 		topics,
-		keywords: keywords.map((keyword) => keyword.name)
+		keywords: toKeywordOptions(keywords)
 	};
 }
 
@@ -147,6 +148,19 @@ function toAlarmBody(draft: AlarmDraft, status: AlarmStatus) {
 		info: draft.info.trim(),
 		status
 	};
+}
+
+/**
+ * Übernimmt Name und Farbe aus der API-Antwort.
+ *
+ * @param keywords Stichworte vom Server
+ * @returns Einstellungsobjekte
+ */
+function toKeywordOptions(keywords: Array<{ name: string; color?: string }>): KeywordOption[] {
+	return keywords.map((keyword) => ({
+		name: keyword.name,
+		color: getKeywordColor(keyword.name, keyword.color)
+	}));
 }
 
 /**

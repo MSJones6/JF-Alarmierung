@@ -38,36 +38,39 @@ class KeywordControllerTest {
 	@Test
 	void listsKeywords() throws Exception {
 		when(keywordService.findAll())
-				.thenReturn(List.of(new KeywordResponse(UUID.randomUUID(), "Feueralarm")));
+				.thenReturn(List.of(new KeywordResponse(UUID.randomUUID(), "Feueralarm", "#f43f5e")));
 
 		mockMvc.perform(get("/api/keywords"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$[0].name").value("Feueralarm"));
+				.andExpect(jsonPath("$[0].name").value("Feueralarm"))
+				.andExpect(jsonPath("$[0].color").value("#f43f5e"));
 	}
 
 	@Test
 	void createsKeyword() throws Exception {
 		UUID id = UUID.fromString("00000000-0000-0000-0000-000000000002");
 		when(keywordService.create(any(KeywordRequest.class)))
-				.thenReturn(new KeywordResponse(id, "Brand"));
+				.thenReturn(new KeywordResponse(id, "Brand", "#dc2626"));
 
 		mockMvc.perform(post("/api/keywords")
 						.contentType(MediaType.APPLICATION_JSON)
-						.content("{\"name\":\"Brand\"}"))
+						.content("{\"name\":\"Brand\",\"color\":\"#dc2626\"}"))
 				.andExpect(status().isCreated())
-				.andExpect(jsonPath("$.name").value("Brand"));
+				.andExpect(jsonPath("$.name").value("Brand"))
+				.andExpect(jsonPath("$.color").value("#dc2626"));
 	}
 
 	@Test
 	void replacesKeywords() throws Exception {
 		when(keywordService.replaceAll(any()))
-				.thenReturn(List.of(new KeywordResponse(UUID.randomUUID(), "Info")));
+				.thenReturn(List.of(new KeywordResponse(UUID.randomUUID(), "Info", "#10b981")));
 
 		mockMvc.perform(put("/api/keywords")
 						.contentType(MediaType.APPLICATION_JSON)
-						.content("[\"Info\"]"))
+						.content("[{\"name\":\"Info\",\"color\":\"#10b981\"}]"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$[0].name").value("Info"));
+				.andExpect(jsonPath("$[0].name").value("Info"))
+				.andExpect(jsonPath("$[0].color").value("#10b981"));
 	}
 
 	@Test

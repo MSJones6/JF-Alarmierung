@@ -60,12 +60,12 @@ public class KeywordController {
 	/**
 	 * Ersetzt die komplette Stichwortliste.
 	 *
-	 * @param names Namen in Anzeigereihenfolge
+	 * @param requests Stichworte in Anzeigereihenfolge
 	 * @return gespeicherte Stichworte
 	 */
 	@PutMapping
-	public List<KeywordResponse> replaceAll(@RequestBody List<String> names) {
-		return keywordService.replaceAll(names);
+	public List<KeywordResponse> replaceAll(@Valid @RequestBody List<KeywordRequest> requests) {
+		return keywordService.replaceAll(requests);
 	}
 
 	/**

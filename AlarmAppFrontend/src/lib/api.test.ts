@@ -37,14 +37,14 @@ describe('fetchAppSettings', () => {
 			if (String(url).endsWith('/api/keywords')) {
 				return {
 					ok: true,
-					json: async () => [{ id: 'k1', name: 'Feueralarm' }]
+					json: async () => [{ id: 'k1', name: 'Feueralarm', color: '#f43f5e' }]
 				};
 			}
 			throw new Error(`unerwarteter Abruf: ${url}`);
 		});
 
 		await expect(fetchAppSettings(fetchFn as unknown as typeof fetch)).resolves.toMatchObject({
-			keywords: ['Feueralarm'],
+			keywords: [{ name: 'Feueralarm', color: '#f43f5e' }],
 			topics: [expect.objectContaining({ name: 'Standard', brokerHost: 'localhost' })]
 		});
 	});

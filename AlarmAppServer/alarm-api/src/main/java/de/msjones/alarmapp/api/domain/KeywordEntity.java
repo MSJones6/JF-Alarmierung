@@ -19,6 +19,9 @@ public class KeywordEntity {
 	@Column(nullable = false, unique = true)
 	private String name;
 
+	@Column(nullable = false, length = 7)
+	private String color;
+
 	@Column(name = "sort_order", nullable = false)
 	private int sortOrder;
 
@@ -62,6 +65,24 @@ public class KeywordEntity {
 	 */
 	public void setName(String name) {
 		this.name = name;
+	}
+
+	/**
+	 * Liefert die Badge-Farbe als Hex-Wert.
+	 *
+	 * @return Farbe im Format `#RRGGBB`
+	 */
+	public String getColor() {
+		return color;
+	}
+
+	/**
+	 * Setzt die Badge-Farbe als Hex-Wert.
+	 *
+	 * @param color Farbe im Format `#RRGGBB`
+	 */
+	public void setColor(String color) {
+		this.color = color;
 	}
 
 	/**

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { KEYWORDS } from './alarm';
+import { DEFAULT_KEYWORD_OPTIONS } from './alarm';
 import { DEFAULT_MQTT_SETTINGS } from './mqtt';
 import {
 	DEFAULT_APP_SETTINGS,
@@ -60,6 +60,13 @@ describe('parseMqttConfig', () => {
 });
 
 describe('parseAppSettings', () => {
+	it('übernimmt gespeicherte Stichwortfarben', () => {
+		const parsed = parseAppSettings({
+			keywords: [{ name: 'Brand', color: '#dc2626' }]
+		});
+		expect(parsed.keywords).toEqual([{ name: 'Brand', color: '#dc2626' }]);
+	});
+
 	it('legt für jedes Topic eine eigene Verbindung an', () => {
 		const parsed = parseAppSettings({
 			keywords: ['Brand'],
@@ -81,7 +88,7 @@ describe('parseAppSettings', () => {
 			]
 		});
 
-		expect(parsed.keywords).toEqual(['Brand']);
+		expect(parsed.keywords).toEqual([{ name: 'Brand', color: '#64748b' }]);
 		expect(parsed.topics).toEqual([
 			expect.objectContaining({
 				name: 'Topic 1',
@@ -186,7 +193,7 @@ describe('loadMqttConfig', () => {
 
 		await expect(loadMqttConfig(fetchFn as unknown as typeof fetch, storage)).resolves.toMatchObject(
 			{
-				keywords: ['Eigene Meldung'],
+				keywords: [{ name: 'Eigene Meldung', color: '#64748b' }],
 				topics: [expect.objectContaining({ brokerHost: 'ui-broker', mqttTopic: 'JF/Ui' })]
 			}
 		);
@@ -207,7 +214,7 @@ describe('loadMqttConfig', () => {
 		await expect(
 			loadMqttConfig(fetchFn as unknown as typeof fetch, new MemoryStorage())
 		).resolves.toMatchObject({
-			keywords: KEYWORDS,
+			keywords: DEFAULT_KEYWORD_OPTIONS,
 			topics: [expect.objectContaining({ brokerHost: 'local-broker', name: 'Standard' })]
 		});
 	});

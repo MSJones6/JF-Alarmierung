@@ -12,10 +12,11 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import { filterAlarms, formatGermanDateTime, getFilterCountLabel, sortAlarms } from '$lib/alarm';
 	import KeywordBadge from '$lib/components/KeywordBadge.svelte';
-	import type { AlarmFilter, AlarmItem, AlarmSortKey, SortDirection } from '$lib/types';
+	import type { AlarmFilter, AlarmItem, AlarmSortKey, KeywordOption, SortDirection } from '$lib/types';
 
 	let {
 		alarms,
+		keywords = [],
 		filter = $bindable(),
 		sortKey = $bindable(),
 		sortDirection = $bindable(),
@@ -23,6 +24,7 @@
 		onDelete
 	}: {
 		alarms: AlarmItem[];
+		keywords?: KeywordOption[];
 		filter: AlarmFilter;
 		sortKey: AlarmSortKey;
 		sortDirection: SortDirection;
@@ -171,7 +173,7 @@
 							</div>
 						</td>
 						<td class="bg-slate-50/80 px-3 py-2.5">
-							<KeywordBadge keyword={alarm.keyword} />
+							<KeywordBadge keyword={alarm.keyword} {keywords} />
 						</td>
 						<td class="bg-slate-50/80 px-3 py-2.5 font-medium text-slate-700">{alarm.location}</td>
 						<td class="bg-slate-50/80 px-3 py-2.5 text-slate-500">{alarm.info}</td>
