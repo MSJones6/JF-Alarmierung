@@ -8,15 +8,21 @@
 	import SettingsDialog from '$lib/components/SettingsDialog.svelte';
 	import {
 		buildMqttPayload,
-		createAlarm,
-		deleteAlarm,
-		updateAlarm,
 		validateAlarmDraft
 	} from '$lib/alarm';
+	import {
+		createRemoteAlarm,
+		deleteRemoteAlarm,
+		fetchAlarms,
+		fetchAppSettings,
+		initApiClient,
+		saveAppSettings,
+		updateRemoteAlarm
+	} from '$lib/api';
+	import { subscribeAlarmStream } from '$lib/alarm-stream';
 	import { getDefaultDraft } from '$lib/demo-data';
 	import { DEFAULT_APP_SETTINGS, loadMqttConfig } from '$lib/mqtt-config';
 	import { publishAlarmMessage } from '$lib/mqtt';
-	import { loadAlarms, saveAlarms } from '$lib/storage';
 	import { findTopicConnection, getTopicNames } from '$lib/topic-connection';
 	import type {
 		AlarmDraft,
@@ -29,7 +35,7 @@
 	} from '$lib/types';
 	import { onMount } from 'svelte';
 
-	let alarms = $state<AlarmItem[]>(loadAlarms());
+	let alarms = $state<AlarmItem[]>([]);
 	let settings = $state<AppSettings>(parseCopy(DEFAULT_APP_SETTINGS));
 	let draft = $state<AlarmDraft>(getDefaultDraft());
 	let filter = $state<AlarmFilter>('planned');
@@ -58,10 +64,6 @@
 	}
 
 	$effect(() => {
-		saveAlarms(alarms);
-	});
-
-	$effect(() => {
 		if (editingId) {
 			return;
 		}
@@ -74,10 +76,47 @@
 	});
 
 	onMount(() => {
-		void loadMqttConfig().then((loaded) => {
-			settings = loaded;
-			alignDraftWithSettings();
-		});
+		let closed = false;
+		let closeStream = () => {};
+
+		void (async () => {
+			await initApiClient();
+			try {
+				settings = await fetchAppSettings();
+				alignDraftWithSettings();
+			} catch {
+				settings = await loadMqttConfig();
+				alignDraftWithSettings();
+				statusType = 'error';
+				status = 'Einstellungen konnten nicht vom Server geladen werden.';
+			}
+
+			try {
+				alarms = await fetchAlarms();
+			} catch {
+				alarms = [];
+			}
+
+			const stop = subscribeAlarmStream(
+				(next) => {
+					alarms = next;
+				},
+				(message) => {
+					statusType = 'error';
+					status = message;
+				}
+			);
+			if (closed) {
+				stop();
+				return;
+			}
+			closeStream = stop;
+		})();
+
+		return () => {
+			closed = true;
+			closeStream();
+		};
 	});
 
 	/**
@@ -90,6 +129,16 @@
 		if (!settings.keywords.includes(draft.keyword)) {
 			draft.keyword = settings.keywords[0] ?? '';
 		}
+	}
+
+	/**
+	 * Speichert Connections und Alarmstichworte über die REST-API.
+	 *
+	 * @param next bearbeitete Einstellungen
+	 */
+	async function persistSettings(next: AppSettings): Promise<void> {
+		settings = await saveAppSettings(next);
+		alignDraftWithSettings();
 	}
 
 	/**
@@ -120,23 +169,28 @@
 	}
 
 	/**
-	 * Löscht eine Alarmierung nach Bestätigung.
+	 * Löscht eine Alarmierung nach Bestätigung auf dem Server.
 	 */
-	function removeAlarm(alarm: AlarmItem): void {
+	async function removeAlarm(alarm: AlarmItem): Promise<void> {
 		const confirmed = confirm(`Alarmierung „${alarm.keyword}“ wirklich löschen?`);
 		if (!confirmed) {
 			return;
 		}
-		alarms = deleteAlarm(alarms, alarm.id);
-		if (editingId === alarm.id) {
-			cancelEdit();
+		try {
+			await deleteRemoteAlarm(alarm.id);
+			if (editingId === alarm.id) {
+				cancelEdit();
+			}
+		} catch (error) {
+			statusType = 'error';
+			status = error instanceof Error ? error.message : 'Alarmierung konnte nicht gelöscht werden.';
 		}
 	}
 
 	/**
-	 * Plant eine neue Alarmierung oder speichert Änderungen.
+	 * Plant eine neue Alarmierung oder speichert Änderungen auf dem Server.
 	 */
-	function scheduleAlarm(): void {
+	async function scheduleAlarm(): Promise<void> {
 		const error = validateAlarmDraft(draft);
 		if (error) {
 			statusType = 'error';
@@ -144,17 +198,23 @@
 			return;
 		}
 
-		if (editingId) {
-			alarms = updateAlarm(alarms, editingId, draft);
-			statusType = 'success';
-			status = 'Alarmierung wurde aktualisiert.';
-			editingId = null;
-			return;
-		}
+		try {
+			if (editingId) {
+				await updateRemoteAlarm(editingId, draft, 'planned');
+				statusType = 'success';
+				status = 'Alarmierung wurde aktualisiert.';
+				editingId = null;
+				return;
+			}
 
-		alarms = [...alarms, createAlarm(draft, 'planned')];
-		statusType = 'success';
-		status = 'Alarmierung wurde geplant.';
+			await createRemoteAlarm(draft, 'planned');
+			statusType = 'success';
+			status = 'Alarmierung wurde geplant.';
+		} catch (saveError) {
+			statusType = 'error';
+			status =
+				saveError instanceof Error ? saveError.message : 'Alarmierung konnte nicht gespeichert werden.';
+		}
 	}
 
 	/**
@@ -188,12 +248,10 @@
 			await publishAlarmMessage(connection, buildMqttPayload(draft));
 
 			if (editingId) {
-				alarms = updateAlarm(alarms, editingId, draft).map((item) =>
-					item.id === editingId ? { ...item, status: 'sent' as const } : item
-				);
+				await updateRemoteAlarm(editingId, draft, 'sent');
 				editingId = null;
 			} else {
-				alarms = [...alarms, createAlarm(draft, 'sent')];
+				await createRemoteAlarm(draft, 'sent');
 			}
 
 			statusType = 'success';
@@ -234,4 +292,4 @@
 	/>
 </div>
 
-<SettingsDialog bind:open={settingsOpen} bind:settings />
+<SettingsDialog bind:open={settingsOpen} bind:settings onSave={persistSettings} />

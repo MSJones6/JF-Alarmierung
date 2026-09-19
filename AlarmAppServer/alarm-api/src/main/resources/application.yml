@@ -1,0 +1,25 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: alarm-api
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/alarmapp}
+    username: ${SPRING_DATASOURCE_USERNAME:alarm}
+    password: ${SPRING_DATASOURCE_PASSWORD:alarm}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+  mvc:
+    async:
+      request-timeout: -1
+
+alarm:
+  cors:
+    allowed-origins: ${ALARM_CORS_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}

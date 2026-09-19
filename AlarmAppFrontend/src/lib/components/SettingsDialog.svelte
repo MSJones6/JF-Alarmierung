@@ -1,22 +1,27 @@
 <script lang="ts">
 	/**
 	 * Dialog für Alarmstichworte und Connections.
-	 * Änderungen werden erst beim Speichern übernommen und im Browser persistiert.
+	 * Änderungen werden erst beim Speichern auf dem REST-Server übernommen.
 	 */
 	import { untrack } from 'svelte';
 	import X from '@lucide/svelte/icons/x';
 	import OptionListEditor from '$lib/components/OptionListEditor.svelte';
 	import TopicConnectionsEditor from '$lib/components/TopicConnectionsEditor.svelte';
-	import { parseAppSettings, saveMqttSettings } from '$lib/mqtt-config';
+	import { parseAppSettings } from '$lib/mqtt-config';
 	import type { AppSettings } from '$lib/types';
 
 	let {
 		open = $bindable(),
-		settings = $bindable()
+		settings = $bindable(),
+		onSave
 	}: {
 		open: boolean;
 		settings: AppSettings;
+		onSave: (next: AppSettings) => Promise<void>;
 	} = $props();
+
+	/** Fehlermeldung beim Speichern auf dem Server. */
+	let saveError = $state('');
 
 	/** Bearbeitete Kopie, bis der Dialog gespeichert oder geschlossen wird. */
 	let draft = $state<AppSettings>(copySettings(settings));
@@ -25,6 +30,7 @@
 		if (open) {
 			untrack(() => {
 				draft = copySettings(settings);
+				saveError = '';
 			});
 		}
 	});
@@ -50,12 +56,17 @@
 	}
 
 	/**
-	 * Übernimmt die Eingaben, speichert sie im Browser und schließt den Dialog.
+	 * Übernimmt die Eingaben, speichert sie auf dem Server und schließt den Dialog.
 	 */
-	function save(): void {
-		settings = parseAppSettings(draft);
-		saveMqttSettings(settings);
-		open = false;
+	async function save(): Promise<void> {
+		try {
+			saveError = '';
+			const next = parseAppSettings(draft);
+			await onSave(next);
+			open = false;
+		} catch (error) {
+			saveError = error instanceof Error ? error.message : 'Einstellungen konnten nicht gespeichert werden.';
+		}
 	}
 </script>
 
@@ -67,7 +78,7 @@
 					<h2 class="text-xl font-extrabold text-navy">Einstellungen</h2>
 					<p class="text-sm text-slate-400">
 						Jede Connection speichert Host, Benutzername, Passwort und die übrigen Verbindungsdaten
-						in diesem Browser.
+						auf dem Server.
 					</p>
 				</div>
 				<button
@@ -91,6 +102,12 @@
 					/>
 				</section>
 			</div>
+
+			{#if saveError}
+				<p class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-center text-sm font-medium text-rose-700">
+					{saveError}
+				</p>
+			{/if}
 
 			<button
 				class="mt-6 w-full rounded-xl bg-brand py-3 font-semibold text-white hover:bg-brand-hover"
