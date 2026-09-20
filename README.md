@@ -215,6 +215,29 @@ ALARMSTICHWORT###ADRESSE###INFO
 
 Die Felder sind durch `###` (drei Hash-Symbole) getrennt. Dieselbe Zerlegung nutzt die Android-App.
 
+### Durchsage auf dem Server
+
+Nach erfolgreichem MQTT-Versand kann die API parallel eine Lautsprecher-Durchsage ausgeben:
+
+1. Gong
+2. gesprochen: `Einsatz: {Stichwort}. Ort: {Ort}. {Infos}.`
+
+Standardmäßig ist die Durchsage **aus**. Einschalten über Umgebungsvariable:
+
+```bash
+ALARM_ANNOUNCEMENT_ENABLED=true
+```
+
+In der Root-`docker-compose.yml` ist die Durchsage über PipeWire/PulseAudio des Hosts angeschlossen (`PULSE_SERVER` und Volume `/run/pulse`). So kommt der Ton über denselben Ausgang wie normale Desktop-Sounds (Monitor, Headset, Dock).
+
+Einschalten:
+
+```bash
+ALARM_ANNOUNCEMENT_ENABLED=true docker compose up --build -d
+```
+
+Ohne Pulse-Socket (nur ALSA) weiterhin `devices: /dev/snd` und optional `ALARM_ANNOUNCEMENT_ALSA_DEVICE=plughw:0,0`. Fehlgeschlagene Durchsagen stehen in `docker compose logs alarm-api`.
+
 ---
 
 ## Frontend (AlarmAppFrontend)

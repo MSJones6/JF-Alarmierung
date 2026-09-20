@@ -59,11 +59,19 @@ services:
       SPRING_DATASOURCE_PASSWORD: alarm
       ALARM_CORS_ORIGINS: http://localhost,http://127.0.0.1,http://localhost:80,http://127.0.0.1:80,http://localhost:5173,http://127.0.0.1:5173
       ALARM_MQTT_HOST_OVERRIDE: mosquitto
+      ALARM_ANNOUNCEMENT_ENABLED: ${ALARM_ANNOUNCEMENT_ENABLED:-false}
+      PULSE_SERVER: unix:/run/pulse/native
+    volumes:
+      - ${XDG_RUNTIME_DIR:-/run/user/1000}/pulse:/run/pulse
     depends_on:
       postgres:
         condition: service_healthy
       mosquitto:
         condition: service_started
+    devices:
+      - /dev/snd
+    group_add:
+      - audio
     networks:
       - msj-jf-alarm-net
 

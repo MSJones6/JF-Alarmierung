@@ -26,6 +26,8 @@ Beim ersten Mal dauert der Download und der Build einige Minuten. Danach geht es
 
 Die Android-App verbindet sich mit dem MQTT-Broker auf **Port 1883** (dieser Rechner).
 
+Optionale Durchsage am Server (Gong plus Sprache): in `docker-compose.yml` bei `alarm-api` `ALARM_ANNOUNCEMENT_ENABLED=true` setzen und unter Linux `/dev/snd` freigeben – Details in der README unter „Durchsage auf dem Server“.
+
 Optional: Datenbank ansehen unter http://localhost:8081 (Server `postgres`, Benutzer `alarm`, Passwort `alarm`).
 
 ## Beenden

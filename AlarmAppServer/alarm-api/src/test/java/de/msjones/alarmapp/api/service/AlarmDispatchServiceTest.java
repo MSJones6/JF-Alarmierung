@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import de.msjones.alarmapp.api.announcement.AlarmAnnouncementService;
 import de.msjones.alarmapp.api.domain.AlarmEntity;
 import de.msjones.alarmapp.api.domain.ConnectionEntity;
 import de.msjones.alarmapp.api.dto.AlarmResponse;
@@ -47,6 +48,9 @@ class AlarmDispatchServiceTest {
 	@Mock
 	private AlarmStreamService alarmStreamService;
 
+	@Mock
+	private AlarmAnnouncementService alarmAnnouncementService;
+
 	private AlarmDispatchService alarmDispatchService;
 
 	/**
@@ -60,6 +64,7 @@ class AlarmDispatchServiceTest {
 				connectionRepository,
 				mqttAlarmPublisher,
 				alarmStreamService,
+				alarmAnnouncementService,
 				clock
 		);
 	}
@@ -101,6 +106,7 @@ class AlarmDispatchServiceTest {
 		alarmDispatchService.sendDueAlarm(id);
 
 		verify(mqttAlarmPublisher).publish(connection, "Feueralarm###Gebäude 3###Rauch");
+		verify(alarmAnnouncementService).announceAsync(alarm);
 		ArgumentCaptor<AlarmEntity> captor = ArgumentCaptor.forClass(AlarmEntity.class);
 		verify(alarmRepository).save(captor.capture());
 		assertThat(captor.getValue().getStatus()).isEqualTo("sent");
@@ -117,6 +123,7 @@ class AlarmDispatchServiceTest {
 		alarmDispatchService.sendDueAlarm(id);
 
 		verify(mqttAlarmPublisher, never()).publish(any(), any());
+		verify(alarmAnnouncementService, never()).announceAsync(any());
 		verify(alarmRepository, never()).save(any());
 	}
 
@@ -133,6 +140,7 @@ class AlarmDispatchServiceTest {
 				.isInstanceOf(IllegalStateException.class)
 				.hasMessageContaining("Unbekannt");
 		verify(mqttAlarmPublisher, never()).publish(any(), any());
+		verify(alarmAnnouncementService, never()).announceAsync(any());
 	}
 
 	@Test
@@ -152,6 +160,7 @@ class AlarmDispatchServiceTest {
 				.isInstanceOf(IllegalStateException.class)
 				.hasMessageContaining("Broker nicht erreichbar");
 		verify(alarmRepository, never()).save(any());
+		verify(alarmAnnouncementService, never()).announceAsync(any());
 		assertThat(alarm.getStatus()).isEqualTo("planned");
 	}
 

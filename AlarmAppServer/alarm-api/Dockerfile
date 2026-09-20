@@ -7,7 +7,7 @@ RUN mvn -B -DskipTests package
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends curl \
+	&& apt-get install -y --no-install-recommends curl espeak-ng alsa-utils pulseaudio-utils \
 	&& rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/target/alarm-api-1.0.0.jar app.jar
 EXPOSE 8080

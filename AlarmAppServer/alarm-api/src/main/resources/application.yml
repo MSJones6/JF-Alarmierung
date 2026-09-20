@@ -34,3 +34,8 @@ alarm:
   mqtt:
     host-override: ${ALARM_MQTT_HOST_OVERRIDE:}
     connect-timeout-seconds: 10
+  announcement:
+    enabled: ${ALARM_ANNOUNCEMENT_ENABLED:false}
+    voice: ${ALARM_ANNOUNCEMENT_VOICE:de}
+    speech-rate: ${ALARM_ANNOUNCEMENT_SPEECH_RATE:130}
+    alsa-device: ${ALARM_ANNOUNCEMENT_ALSA_DEVICE:}

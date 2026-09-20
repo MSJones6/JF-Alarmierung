@@ -1,5 +1,6 @@
 package de.msjones.alarmapp.api.service;
 
+import de.msjones.alarmapp.api.announcement.AlarmAnnouncementService;
 import de.msjones.alarmapp.api.domain.AlarmEntity;
 import de.msjones.alarmapp.api.domain.ConnectionEntity;
 import de.msjones.alarmapp.api.dto.AlarmResponse;
@@ -33,6 +34,7 @@ public class AlarmDispatchService {
 	private final ConnectionRepository connectionRepository;
 	private final MqttAlarmPublisher mqttAlarmPublisher;
 	private final AlarmStreamService alarmStreamService;
+	private final AlarmAnnouncementService alarmAnnouncementService;
 	private final Clock clock;
 
 	/**
@@ -42,6 +44,7 @@ public class AlarmDispatchService {
 	 * @param connectionRepository Connections
 	 * @param mqttAlarmPublisher MQTT-Versand
 	 * @param alarmStreamService Live-Updates
+	 * @param alarmAnnouncementService Server-Durchsage
 	 * @param zoneId Zeitzone der geplanten Zeitpunkte
 	 */
 	@Autowired
@@ -50,6 +53,7 @@ public class AlarmDispatchService {
 			ConnectionRepository connectionRepository,
 			MqttAlarmPublisher mqttAlarmPublisher,
 			AlarmStreamService alarmStreamService,
+			AlarmAnnouncementService alarmAnnouncementService,
 			@Value("${alarm.scheduler.zone:Europe/Berlin}") String zoneId
 	) {
 		this(
@@ -57,6 +61,7 @@ public class AlarmDispatchService {
 				connectionRepository,
 				mqttAlarmPublisher,
 				alarmStreamService,
+				alarmAnnouncementService,
 				Clock.system(ZoneId.of(zoneId))
 		);
 	}
@@ -68,6 +73,7 @@ public class AlarmDispatchService {
 	 * @param connectionRepository Connections
 	 * @param mqttAlarmPublisher MQTT-Versand
 	 * @param alarmStreamService Live-Updates
+	 * @param alarmAnnouncementService Server-Durchsage
 	 * @param clock aktuelle Zeit
 	 */
 	AlarmDispatchService(
@@ -75,12 +81,14 @@ public class AlarmDispatchService {
 			ConnectionRepository connectionRepository,
 			MqttAlarmPublisher mqttAlarmPublisher,
 			AlarmStreamService alarmStreamService,
+			AlarmAnnouncementService alarmAnnouncementService,
 			Clock clock
 	) {
 		this.alarmRepository = alarmRepository;
 		this.connectionRepository = connectionRepository;
 		this.mqttAlarmPublisher = mqttAlarmPublisher;
 		this.alarmStreamService = alarmStreamService;
+		this.alarmAnnouncementService = alarmAnnouncementService;
 		this.clock = clock;
 	}
 
@@ -145,5 +153,6 @@ public class AlarmDispatchService {
 						"Connection „" + alarm.getConnectionName() + "“ wurde nicht gefunden."
 				));
 		mqttAlarmPublisher.publish(connection, AlarmPayload.from(alarm));
+		alarmAnnouncementService.announceAsync(alarm);
 	}
 }
