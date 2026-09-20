@@ -35,7 +35,9 @@ pnpm build
 pnpm preview
 ```
 
-Zum Deployen ggf. einen [Adapter](https://svelte.dev/docs/kit/adapters) für die Zielumgebung einrichten.
+Zum Deployen mit Docker Compose siehe **[STARTEN.md](../STARTEN.md)** im Projektstamm. Der Docker-Build erzeugt ein statisches SPA hinter nginx.
+
+Zum manuellen Deployen ggf. einen [Adapter](https://svelte.dev/docs/kit/adapters) für die Zielumgebung einrichten.
 
 ## API
 

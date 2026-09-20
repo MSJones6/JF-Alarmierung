@@ -41,28 +41,45 @@ Wir sind gespannt auf eure Vorschläge und bedanken uns für euer Interesse am P
 
 ---
 
+## Schnellstart (empfohlen)
+
+Frontend, Alarm-API, PostgreSQL und Mosquitto starten zusammen per Docker Compose. **Keine Programmierkenntnisse nötig.**
+
+Schritt-für-Schritt: **[STARTEN.md](STARTEN.md)**
+
+Kurzfassung:
+
+1. [Docker Desktop](https://www.docker.com/products/docker-desktop/) installieren und starten.
+2. Im Projektordner `start.bat` (Windows) doppelklicken oder `./start.sh` (Mac/Linux) ausführen.
+3. Im Browser **http://localhost** öffnen.
+
+Beenden mit `stop.bat` bzw. `./stop.sh`.
+
+| Port | Dienst |
+|------|--------|
+| `80` | Weboberfläche (Frontend, API unter `/api`) |
+| `1883` | MQTT für die Android-App |
+| `9001` | MQTT WebSocket |
+| `8081` | Adminer (optionale Datenbank-Oberfläche) |
+
+---
+
 ## Systemarchitektur
 
 ```
-┌─────────────────┐     MQTT      ┌─────────────────┐     Websocket  ┌──────────────────┐
-│ MessageSender   │──────────────▶│  AlarmAppServer │◀───────────────│ AlarmAppFrontend │
-│ (Java Backend)  │               │  (Mosquitto)    │                │ (React Web App)  │
-└─────────────────┘               └────────┬────────┘                └──────────────────┘
-                                           │ MQTT/WebSocket
-                                           ▼
-                                  ┌─────────────────┐
-                                  │  AlarmAppClient │
-                                  │  (Android App)  │
+┌─────────────────┐     MQTT      ┌─────────────────┐     REST /api     ┌──────────────────┐
+│ Alarm-API       │──────────────▶│  Mosquitto      │                   │ AlarmAppFrontend │
+│ (Spring Boot)   │               │  (MQTT-Broker)  │◀──────────────────│ (SvelteKit)      │
+└────────┬────────┘               └────────┬────────┘                   └──────────────────┘
+         │ PostgreSQL                      │ MQTT
+         ▼                                 ▼
+┌─────────────────┐               ┌─────────────────┐
+│ Postgres        │               │  AlarmAppClient │
+└─────────────────┘               │  (Android App)  │
                                   └─────────────────┘
 ```
 
-## Startreihenfolge
-
-Die Komponenten müssen in folgender Reihenfolge gestartet werden:
-
-1. **AlarmAppServer** (MQTT-Broker) - Zuerst starten
-2. **AlarmAppFrontend** - Webinterface zum Senden von Alarmen
-3. **MessageSender** - MQTT abonnieren und Nachrichten verarbeiten (bei Bedarf)
+Entwicklung ohne Docker: API und Mosquitto über `AlarmAppServer/docker-compose.yml`, Frontend mit `pnpm dev` (siehe unten).
 
 ---
 
@@ -72,9 +89,11 @@ Die Komponenten müssen in folgender Reihenfolge gestartet werden:
 
 Mosquitto MQTT-Broker, der in Docker ausgeführt wird. Behandelt den Nachrichtenrouting zwischen allen Komponenten.
 
+Für den kompletten Stack (inkl. Weboberfläche) die Datei **[STARTEN.md](STARTEN.md)** bzw. `docker-compose.yml` im Projektstamm verwenden. `AlarmAppServer/docker-compose.yml` startet nur Broker, Datenbank und API.
+
 ### Konfiguration
 
-Der Server wird über `docker-compose.yml` konfiguriert:
+Der Broker wird über Compose konfiguriert:
 
 | Port | Protokoll | Zweck |
 |------|-----------|-------|
