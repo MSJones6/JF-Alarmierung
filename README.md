@@ -1,10 +1,9 @@
 # JF-Alarmierung
 
-Ein umfassendes Alarmbenachrichtigungssystem, das aus drei Hauptkomponenten besteht:
-- **AlarmAppServer**: Mosquitto MQTT-Broker für den Nachrichtenrouting
+Ein umfassendes Alarmbenachrichtigungssystem, das aus folgenden Hauptkomponenten besteht:
+- **AlarmAppServer**: Mosquitto MQTT-Broker und Alarm-API für Routing, Planung und Versand
 - **AlarmAppFrontend**: Webbasierte Schnittstelle zum Senden von Alarmmeldungen
 - **AlarmAppClient**: Android App zum Empfang von Alarmmeldungen
-- **MessageSender**: Backend-Dienst zur Erstellung und Weiterleitung von Alarmen
 
 ## Haftungsausschluss
 Das komplette Projekt ist ein reines Hobby Projekt.
@@ -21,21 +20,21 @@ Das Projekt ist Open-Source und lebt von der Community.
 
 ### Wie ihr beitragen könnt:
 
-- **Feature-Vorschläge**: Habt ihr eine Idee für ein neues Feature? 
+- **[Feature-Vorschläge](https://github.com/MSJones6/JF-Alarmierung/issues/new?title=Feature-Vorschlag)**: Habt ihr eine Idee für ein neues Feature? 
   Lasst es uns wissen! Wir sind offen für Anregungen.
-- **Bug-Reports**: Findet ihr einen Bug? Meldet ihn gerne.
-- **Pull-Requests**: Direkte Verbesserungen sind willkommen – Code, Dokumentation, Übersetzungen.
-- **Feedback**: Allgemeines Feedback hilft uns, das Projekt besser zu machen.
+- **[Bug-Reports](https://github.com/MSJones6/JF-Alarmierung/issues/new?title=Bug)**: Findet ihr einen Bug? Meldet ihn gerne.
+- **[Pull-Requests](https://github.com/MSJones6/JF-Alarmierung/compare)**: Direkte Verbesserungen sind willkommen – Code, Dokumentation, Übersetzungen.
+- **[Feedback](https://github.com/MSJones6/JF-Alarmierung/issues/new?title=Feedback)**: Allgemeines Feedback hilft uns, das Projekt besser zu machen.
 
 ### ☕ Unterstützung
 Wenn dir die App gefällt und du die Entwicklung der Jugendfeuerwehr-Alarmierung unterstützen möchtest, freue ich mich über einen Kaffee!
 
-[![PayPal](https://img.shields.io/badge/PayPal-Spenden-blue.svg)](https://paypal.me/JFAlarmApp)
+[![Mit PayPal spenden](https://www.paypalobjects.com/de_DE/DE/i/btn/btn_donateCC_LG.gif)](https://paypal.me/JFAlarmApp)
 
 ### Kontakt:
 
-- GitHub Issues für Bug-Reports und Feature-Vorschläge
-- Direkte Kontaktaufnahme bei größeren Ideen oder Fragen
+- [GitHub Issues für Bug-Reports und Feature-Vorschläge](https://github.com/MSJones6/JF-Alarmierung/issues)
+- [Direkte Kontaktaufnahme bei größeren Ideen oder Fragen](https://github.com/MSJones6)
 
 Wir sind gespannt auf eure Vorschläge und bedanken uns für euer Interesse am Projekt!
 
@@ -57,9 +56,9 @@ Beenden mit `stop.bat` bzw. `./stop.sh`.
 
 | Port | Dienst |
 |------|--------|
-| `80` | Weboberfläche (Frontend, API unter `/api`) |
-| `1883` | MQTT für die Android-App |
-| `9001` | MQTT WebSocket |
+| `80` | Weboberfläche (Frontend, Alarm-API unter `/api`) |
+| `1883` | MQTT TCP für die Android-App |
+| `9001` | MQTT WebSocket für die Alarm-API |
 | `8081` | Adminer (optionale Datenbank-Oberfläche) |
 
 ---
@@ -67,254 +66,239 @@ Beenden mit `stop.bat` bzw. `./stop.sh`.
 ## Systemarchitektur
 
 ```
-┌─────────────────┐     MQTT      ┌─────────────────┐     REST /api     ┌──────────────────┐
-│ Alarm-API       │──────────────▶│  Mosquitto      │                   │ AlarmAppFrontend │
-│ (Spring Boot)   │               │  (MQTT-Broker)  │◀──────────────────│ (SvelteKit)      │
-└────────┬────────┘               └────────┬────────┘                   └──────────────────┘
-         │ PostgreSQL                      │ MQTT
-         ▼                                 ▼
-┌─────────────────┐               ┌─────────────────┐
-│ Postgres        │               │  AlarmAppClient │
-└─────────────────┘               │  (Android App)  │
-                                  └─────────────────┘
+┌──────────────────┐   REST /api    ┌─────────────────┐     MQTT      ┌─────────────────┐
+│ AlarmAppFrontend │───────────────▶│ Alarm-API       │──────────────▶│ Mosquitto       │
+│ (SvelteKit)      │                │ (Spring Boot)   │               │ (MQTT-Broker)   │
+└──────────────────┘                └────────┬────────┘               └────────┬────────┘
+                                             │ PostgreSQL                      │ MQTT
+                                             ▼                                 ▼
+                                    ┌─────────────────┐               ┌─────────────────┐
+                                    │ Postgres        │               │ AlarmAppClient  │
+                                    └─────────────────┘               │ (Android App)   │
+                                                                      └─────────────────┘
 ```
 
-Entwicklung ohne Docker: API und Mosquitto über `AlarmAppServer/docker-compose.yml`, Frontend mit `pnpm dev` (siehe unten).
+Das Frontend plant und löst Alarme nur über die REST-API aus. MQTT versendet ausschließlich die Alarm-API über Mosquitto an die Android-App.
+
+Entwicklung ohne vollständigen Stack: API, Postgres und Mosquitto über `AlarmAppServer/docker-compose.yml`, Frontend mit `pnpm dev` (siehe unten).
 
 ---
 
 ## Server (AlarmAppServer)
 
-### Beschreibung
+Unter `AlarmAppServer` liegen Mosquitto, die Alarm-API und die Backend-Compose-Datei.
 
-Mosquitto MQTT-Broker, der in Docker ausgeführt wird. Behandelt den Nachrichtenrouting zwischen allen Komponenten.
-
-Für den kompletten Stack (inkl. Weboberfläche) die Datei **[STARTEN.md](STARTEN.md)** bzw. `docker-compose.yml` im Projektstamm verwenden. `AlarmAppServer/docker-compose.yml` startet nur Broker, Datenbank und API.
-
-### Konfiguration
-
-Der Broker wird über Compose konfiguriert:
-
-| Port | Protokoll | Zweck |
-|------|-----------|-------|
-| `1883` | TCP | MQTT-Protokoll (für mobile Clients, Geräte) |
-| `9001` | TCP/WebSocket | WebSocket (für browserbasierte Clients) |
+Für den kompletten Stack inkl. Weboberfläche **[STARTEN.md](STARTEN.md)** bzw. `docker-compose.yml` im Projektstamm verwenden. `AlarmAppServer/docker-compose.yml` startet nur Broker, Postgres, Adminer und Alarm-API (ohne Frontend; API dann auf Port `8080`).
 
 ### Verzeichnisstruktur
 
 ```
 AlarmAppServer/
 ├── docker-compose.yml
+├── alarm-api/          # Spring-Boot REST-API
 └── mosquitto/
-    ├── config/         # Konfigurationsdateien
-    ├── data/           # Persistente Daten
+    ├── config/         # mosquitto.conf, Passwort- und ACL-Datei
+    ├── data/           # persistente Broker-Daten
     └── log/            # Protokolldateien
 ```
 
-### Ausführungsbefehle
+### Mosquitto
+
+Der Broker leitet die von der Alarm-API veröffentlichten Alarme an die Android-App weiter.
+
+| Port | Protokoll | Zweck |
+|------|-----------|-------|
+| `1883` | MQTT/TCP | Android-App |
+| `9001` | MQTT/WebSocket | Alarm-API (nicht das Frontend) |
+
+Aktuelle Broker-Konfiguration (`mosquitto/config/mosquitto.conf`):
+
+- Authentifizierung über `password_file` (kein anonymer Zugriff)
+- Topic-Rechte über `acl_file`
+- Persistenz ist eingeschaltet
+- TLS/SSL ist **nicht** vorkonfiguriert (für Produktion empfohlen, typisch Port `8883`)
 
 ```bash
-# Zum Server-Verzeichnis navigieren
 cd AlarmAppServer
-
-# Mosquitto-Broker starten
-docker-compose up -d
-
-# Protokolle anzeigen
-docker-compose logs -f
-
-# Broker stoppen
-docker-compose down
-
-# Broker neu starten
-docker-compose restart
+docker compose up -d
+docker compose logs -f
+docker compose down
 ```
 
-### Broker-Konfiguration
+### MQTT-Benutzer und Topics
 
-Die Mosquitto-Konfigurationsdatei (`mosquitto/config/mosquitto.conf`) enthält typischerweise:
+Mosquitto lässt niemanden ohne Login zu. **Benutzer und Passwort** stehen in `AlarmAppServer/mosquitto/config/passwordfile.conf` (nur Hashes, keine Klartext-Passwörter). **Welche Topics** ein Benutzer lesen oder schreiben darf, steht in `AlarmAppServer/mosquitto/config/aclfile.conf`.
 
-- **Authentifizierung**: Benutzername/Passwort über `password_file`
-- **Autorisierung**: Topic-basierte Zugriffskontrolle über `acl_file`
-- **Persistenz**: Aktivieren, falls für Message Queuing benötigt
-- **TLS/SSL**: Empfohlen für Produktion (Port 8883)
+Das sind MQTT-Zugänge für Broker, Alarm-API und Android-App – nicht für die Weboberfläche.
+
+Mitgelieferte Konten (nur zum Ausprobieren, Passwörter bitte ändern):
+
+| Benutzer | Passwort | Topics |
+|----------|----------|--------|
+| `alarm` | `alarm` | `JF/Alarm` und `JF/Alarm/KB` lesen und schreiben (Alarm-API) |
+| `reader` | `reader` | dieselben Topics nur lesen (Android-App) |
+| `admin` | `admin` | alle Topics lesen und schreiben |
+
+#### 1. Benutzer anlegen oder Passwort setzen
+
+Der Stack muss laufen. Befehl im **Projektstamm** (Passwort in Anführungszeichen, Benutzername ohne Leerzeichen):
+
+```bash
+docker compose exec mosquitto mosquitto_passwd -b /mosquitto/config/passwordfile.conf FEUERWEHR 'SicheresPasswort'
+```
+
+Dabei `FEUERWEHR` durch den gewünschten Namen ersetzen. Existiert der Benutzer schon, wird nur das Passwort neu gesetzt.
+
+Benutzer löschen:
+
+```bash
+docker compose exec mosquitto mosquitto_passwd -D /mosquitto/config/passwordfile.conf FEUERWEHR
+```
+
+**Nicht** `mosquitto_passwd -c` verwenden: das legt eine neue Datei an und löscht alle bisherigen Benutzer.
+
+#### 2. Topics zuweisen
+
+`AlarmAppServer/mosquitto/config/aclfile.conf` in einem Texteditor öffnen. Pro Benutzer ein Block: erst `user`, darunter eine oder mehrere `topic`-Zeilen.
+
+```
+# nur empfangen (Android)
+user FEUERWEHR
+topic read JF/Alarm/KB
+
+# empfangen und senden (Alarm-API / Connection in der Weboberfläche)
+user DISPO
+topic readwrite JF/Alarm/KB
+```
+
+| Recht | Bedeutung |
+|-------|-----------|
+| `read` | nur empfangen (typisch Android) |
+| `write` | nur senden |
+| `readwrite` | beides (typisch die Connection der Alarm-API) |
+
+`#` am Topic-Ende steht für alle Unterthemen, z. B. `JF/Alarm/#`. Der Benutzername in der ACL muss **genau** dem Namen aus Schritt 1 entsprechen.
+
+Die Alarm-API sendet mit dem Benutzer, der in der Weboberfläche unter **Einstellungen → Connection** hinterlegt ist. Die Android-App nutzt Benutzer, Passwort und Topic aus ihren eigenen Einstellungen bzw. dem QR-Code. Beides muss zum Broker und zur ACL passen.
+
+#### 3. Änderungen übernehmen
+
+```bash
+docker compose restart mosquitto
+```
+
+Danach Connection in der Weboberfläche und Zugangsdaten in der Android-App auf den neuen Benutzer umstellen.
+
+---
+
+## Alarm-API
+
+Spring Boot 3 unter `AlarmAppServer/alarm-api` (Java 21). Die API speichert Connections, Alarmstichworte und Alarme in PostgreSQL, plant den Versand und veröffentlicht zum Zeitpunkt per MQTT über Mosquitto.
+
+Im Docker-Stack ist sie intern auf Port `8080`; über die Weboberfläche erreichbar unter **http://localhost/api**. Lokal ohne Frontend: **http://127.0.0.1:8080**.
+
+| Pfad | Zweck |
+|------|--------|
+| `GET /api/health` | Erreichbarkeit (`{"status":"UP"}`) |
+| `/api/connections` | MQTT-Verbindungen |
+| `/api/keywords` | Alarmstichworte |
+| `/api/alarms` | Alarme anlegen, ändern, löschen, listen |
+| `GET /api/alarms/stream` | Live-Updates (Server-Sent Events) |
+
+Die API verbindet sich intern per WebSocket (`ws://…:9001/mqtt`) mit Mosquitto. In Docker ersetzt `ALARM_MQTT_HOST_OVERRIDE=mosquitto` den Host `localhost` aus gespeicherten Connections.
+
+### MQTT-Nachrichtenformat
+
+```
+ALARMSTICHWORT###ADRESSE###INFO
+```
+
+Die Felder sind durch `###` (drei Hash-Symbole) getrennt. Dieselbe Zerlegung nutzt die Android-App.
 
 ---
 
 ## Frontend (AlarmAppFrontend)
 
-### Beschreibung
+SvelteKit-Oberfläche zum Planen und Auslösen von Alarmen. Sie spricht nur die REST-API, kein MQTT.
 
-SvelteKit-Webanwendung zum Planen und Auslösen von Alarmmeldungen über die REST-API. MQTT versendet nur der Server.
+Verbindungen, Alarmstichworte und Alarme kommen ausschließlich von der API. Es gibt keine lokalen JSON-Fallbacks für Broker-Daten.
 
-### Konfiguration
-
-Verbindungen, Alarmstichworte und Alarme kommen ausschließlich von der API (`/api/connections`, `/api/keywords`, `/api/alarms`). Es gibt keine lokalen JSON-Fallbacks für Broker-Daten.
-
-Die optionale Datei `AlarmAppFrontend/static/api-config.json` enthält nur die API-Basis-URL (kein Rebuild nötig). Fehlt sie, nutzt das Frontend denselben Ursprung bzw. den Vite-Proxy `/api`.
-
-| Einstellung | Standardwert | Beschreibung |
-|-------------|---------------|--------------|
-| `apiBaseUrl` | `http://127.0.0.1:8080` | Basis-URL der Alarm-API |
-
-### Ausführungsbefehle
+Die Datei `AlarmAppFrontend/static/api-config.json` setzt zur Laufzeit nur die API-Basis-URL (kein Rebuild). Im Docker-Image ist `apiBaseUrl` leer, damit der Browser denselben Ursprung (`/api`) nutzt. Für `pnpm dev` zeigt sie auf `http://127.0.0.1:8080`; fehlt sie, greift der Vite-Proxy `/api`.
 
 ```bash
-# Zum Frontend-Verzeichnis navigieren
 cd AlarmAppFrontend
-
-# Abhängigkeiten installieren
 pnpm install
-
-# Entwicklungsserver starten
 pnpm dev
-
-# Für Produktion bauen
-pnpm build
-
-# Produktions-Build anzeigen
-pnpm preview
 ```
 
-## MessageSender
-
-### Beschreibung
-
-Java-basierter Backend-Dienst, der den MQTT-Broker abonniert und Alarmmeldungen sendet.
-**Achtung:** Aktuell nur als Testclient verwendbar. Es ist nur eine Alarmmeldungen fest in den Quelldateien hinterlegt.
-**TODO:** Alarmmeldung Konfiguration per API und zeitgesteuertes, automatisches Triggern der vorbereiteten Alarmmeldungen.
-
-### Konfiguration
-
-Die Konfiguration wird über `pom.xml` und Anwendungseigenschaften verwaltet:
-
-| Einstellung | Beschreibung |
-|-------------|--------------|
-| `mqtt.broker.url` | MQTT-Broker-URL (z.B., `tcp://localhost:1883`) |
-| `mqtt.client.id` | Eindeutige Client-Kennung für MQTT-Verbindung |
-| `mqtt.topic.subscribe` | Topic zum Abonnieren eingehender Alarme |
-| `mqtt.username` | MQTT-Authentifizierungsbenutzername (falls erforderlich) |
-| `mqtt.password` | MQTT-Authentifizierungspasswort (falls erforderlich) |
-
-### Ausführungsbefehle
-
-```bash
-# Zum MessageSender-Verzeichnis navigieren
-cd MessageSender
-
-# Anwendung bauen
-mvn clean package
-
-# Anwendung ausführen
-java -jar target/messagesender-*.jar
-
-# Oder mit Maven ausführen
-mvn spring-boot:run
-```
-
-### MQTT-Nachrichtenformat
-
-Das Frontend sendet Alarmmeldungen im folgenden Format:
-```
-ALARMSTICHWORT###ADRESSE###INFO
-```
-
-Die Felder sind durch `###` (drei Hash-Symbole) getrennt.
+Produktion über Docker Compose (siehe Schnellstart). Details: [AlarmAppFrontend/README.md](AlarmAppFrontend/README.md).
 
 ---
 
 ## AlarmAppClient
 
-Android Applikation zum Empfangen der Alarmmeldungen.
-Die App wird im Google Play Store bereit gestellt.
-**TODO:** Link zum Playstore
+Android-App im Ordner `AlarmAppClient` zum Empfangen der Alarmmeldungen. MQTT über TCP-Port `1883` (optional SSL/TLS).
 
-### Konfiguration
-Die Server und Topics, zu denen sich verbunden werden soll, kann in den Einstellungen eingestellt werden.
-Die Einstellungen können entweder händisch oder durch das Scannen eines QR-Codes erfolgen.
-Die Erstellung des QR-Codes wird weiter unten erläutert.
-
-Damit der Dienst aktiv wird, muss er in den Einstellungen aktiviert werden.
-Alle konfigurierten Server werden kontaktiert.
-Sollte ein Server nicht kontaktiert werden können, wird der gesamte Dienst gestoppt.
+Verbindungen und Topics werden in den Einstellungen gepflegt, manuell oder per QR-Code (Format siehe unten). Jede Verbindung lässt sich einzeln aktivieren. Schlägt eine Verbindung fehl, wird nur diese deaktiviert; andere bleiben aktiv.
 
 ---
 
-## QR-Code für Android App generieren
+## QR-Code für die Android-App
 
-Um einen QR-Code für die Android App zu generieren, erstellen Sie einen JSON-String mit folgendem Format:
+JSON mit exakt diesem Originator; sonst lehnt die App den Code ab.
 
 ```json
 {
   "originator": "MSJones JF Alarm App",
-  "ssl": true,
-  "host": "mqtt.jf-alarm.example.com",
-  "port": 8443,
-  "username": "feuerwehr-alarm",
-  "password": "secureToken123",
-  "topic": "JF/Alarm"
+  "name": "Jugendfeuerwehr",
+  "ssl": false,
+  "host": "mqtt.example.com",
+  "port": 1883,
+  "username": "alarm",
+  "password": "secret",
+  "topic": "JF/Alarm/KB"
 }
 ```
-
-### Felder:
 
 | Feld | Beschreibung | Pflicht |
 |------|--------------|---------|
-| `originator` | Muss exakt "MSJones JF Alarm App" sein | ✓ |
-| `host` | MQTT-Server-Hostname oder IP | ✓ |
-| `port` | MQTT-Port (Standard: 1883) | ✓ |
-| `username` | Authentifizierung Benutzername | ✗ |
-| `password` | Authentifizierung Passwort | ✗ |
-| `topic` | MQTT-Topic für Alarme | ✓ |
+| `originator` | Muss exakt `MSJones JF Alarm App` sein | ✓ |
+| `host` | MQTT-Hostname oder IP | ✓ |
+| `port` | MQTT-Port (Standard `1883`, mit TLS oft `8883`) | ✓ |
+| `ssl` | `true` für MQTT über TLS | ✗ |
+| `name` | Anzeigename in der App | ✗ |
+| `username` | MQTT-Benutzer | ✗ |
+| `password` | MQTT-Passwort | ✗ |
+| `topic` | MQTT-Topic, Standard in der App `JF/Alarm/KB` | ✓ |
 
-### QR-Code Generator Beispiel (JavaScript):
-
-```javascript
-function generateQrCode(settings) {
-  const json = JSON.stringify({
-    originator: "MSJones JF Alarm App",
-    host: settings.host,
-    port: settings.port,
-    username: settings.username,
-    password: settings.password,
-    topic: settings.topic
-  });
-
-  // Verwenden Sie eine QR-Code Bibliothek wie qrcode.js
-  return qrcode.toDataURL(json);
-}
-```
-
-### Beispiel mit Online-Generatoren:
-
-1. JSON-Objekt erstellen
-2. JSON-String kopieren
-3. In QR-Code Generator wie https://www.qr-code-generator.com/ einfügen
-4. QR-Code herunterladen und verteilen
+JSON in einen QR-Generator (z. B. https://www.qr-code-generator.com/) einfügen und den Code verteilen.
 
 ---
 
 ## Sicherheitsempfehlungen
 
-1. **TLS/SSL verwenden**: TLS auf Mosquitto für verschlüsselte Kommunikation aktivieren
-2. **Starke Authentifizierung**: Komplexe Passwörter verwenden und Zertifikatauthentifizierung in Betracht ziehen
-3. **Topic-Einschränkungen**: Publish/Subscribe-Berechtigungen nach Benutzerrolle einschränken
-4. **Firewall**: Zugriff auf MQTT-Ports auf vertrauenswürdige Netzwerke beschränken
-5. **Regelmäßige Updates**: Docker-Images und Abhängigkeiten aktuell halten
+Die mitgelieferte Mosquitto-Konfiguration nutzt Benutzer/Passwort und ACLs, aber kein TLS.
+
+1. **TLS/SSL**: Für den Betrieb nach außen MQTT verschlüsseln (typisch Port `8883`)
+2. **Starke Passwörter**: Zugangsdaten nicht unnötig weitergeben; Dateien unter `mosquitto/config/` schützen
+3. **Topic-Rechte**: Publish/Subscribe in der ACL nach Rolle einschränken
+4. **Firewall**: MQTT-Ports nur aus vertrauenswürdigen Netzen
+5. **Updates**: Docker-Images und Abhängigkeiten aktuell halten
 
 ## Fehlerbehebung
 
-### Frontend-Verbindungsprobleme
-- Überprüfen, ob Mosquitto läuft: `docker-compose ps`
-- WebSocket-Port 9001 muss erreichbar sein
-- Topic-Berechtigungen in Mosquitto ACL validieren
+Befehle im **Projektstamm**, sofern der komplette Stack über die Root-Compose läuft.
 
-### Server-Probleme
-- Protokolle prüfen: `docker-compose logs mosquitto`
-- Port-Bindungen überprüfen: `netstat -tlnp | grep -E '1883|9001'`
-- Sicherstellen, dass keine Firewall die Ports blockiert
+### Frontend
+- Stack prüfen: `docker compose ps`
+- Health: http://localhost/api/health
+- Entwicklung: Vite-Proxy `/api` bzw. `AlarmAppFrontend/static/api-config.json`
 
-### MessageSender-Probleme
-- MQTT-Broker muss erreichbar sein
-- Abonniertes Topic muss mit dem Frontend-Publish-Topic übereinstimmen
-- Java-Anwendungsprotokolle auf Fehlerdetails prüfen
+### Mosquitto
+- Protokolle: `docker compose logs -f mosquitto`
+- Ports `1883` (App) und `9001` (API) müssen frei und erreichbar sein
+
+### Alarm-API
+- Broker-Hostname in Docker: `ALARM_MQTT_HOST_OVERRIDE=mosquitto`
+- Postgres muss gesund sein
+- Protokolle: `docker compose logs -f alarm-api`
