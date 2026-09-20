@@ -93,52 +93,54 @@
 	</div>
 
 	<div class="space-y-5">
-		<label class="block">
-			<span class="mb-2 block text-sm font-semibold text-slate-600">Connection</span>
-			<div class="relative">
-				<Radio
-					class="pointer-events-none absolute top-1/2 left-4 z-10 -translate-y-1/2 text-slate-400"
-					size={18}
-				/>
-				<select
-					class="w-full appearance-none rounded-xl border-slate-200 py-3 pr-10 pl-12 text-slate-700 shadow-none focus:border-blue-400 focus:ring-blue-400"
-					bind:value={draft.connection}
-				>
-					{#each connectionOptions as connection (connection)}
-						<option value={connection}>{connection}</option>
-					{/each}
-				</select>
-			</div>
-		</label>
+		<div class="grid gap-5 md:grid-cols-2">
+			<label class="block">
+				<span class="mb-2 block text-sm font-semibold text-slate-600">Connection</span>
+				<div class="relative">
+					<Radio
+						class="pointer-events-none absolute top-1/2 left-4 z-10 -translate-y-1/2 text-slate-400"
+						size={18}
+					/>
+					<select
+						class="w-full appearance-none rounded-xl border-slate-200 py-3 pr-10 pl-12 text-slate-700 shadow-none focus:border-blue-400 focus:ring-blue-400"
+						bind:value={draft.connection}
+					>
+						{#each connectionOptions as connection (connection)}
+							<option value={connection}>{connection}</option>
+						{/each}
+					</select>
+				</div>
+			</label>
 
-		<div class="block">
-			<span class="mb-2 block text-sm font-semibold text-slate-600">Zeit</span>
-			<button
-				type="button"
-				class="relative flex w-full items-center rounded-xl border border-slate-200 bg-white py-3 pr-12 pl-12 text-left text-slate-700 shadow-none transition hover:border-blue-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none"
-				aria-haspopup="dialog"
-				aria-expanded={timePickerOpen}
-				onclick={() => {
-					timePickerOpen = true;
-				}}
-			>
-				<Clock
-					class="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-slate-400"
-					size={18}
+			<div class="block">
+				<span class="mb-2 block text-sm font-semibold text-slate-600">Zeit</span>
+				<button
+					type="button"
+					class="relative flex w-full items-center rounded-xl border border-slate-200 bg-white py-3 pr-12 pl-12 text-left text-slate-700 shadow-none transition hover:border-blue-300 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none"
+					aria-haspopup="dialog"
+					aria-expanded={timePickerOpen}
+					onclick={() => {
+						timePickerOpen = true;
+					}}
+				>
+					<Clock
+						class="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-slate-400"
+						size={18}
+					/>
+					<span class="min-w-0 truncate">{formatGermanDateTime(draft.scheduledAt)}</span>
+					<Calendar
+						class="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-slate-400"
+						size={18}
+					/>
+				</button>
+				<AnalogTimePicker
+					bind:open={timePickerOpen}
+					value={draft.scheduledAt}
+					onApply={(next) => {
+						draft.scheduledAt = next;
+					}}
 				/>
-				{formatGermanDateTime(draft.scheduledAt)}
-				<Calendar
-					class="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-slate-400"
-					size={18}
-				/>
-			</button>
-			<AnalogTimePicker
-				bind:open={timePickerOpen}
-				value={draft.scheduledAt}
-				onApply={(next) => {
-					draft.scheduledAt = next;
-				}}
-			/>
+			</div>
 		</div>
 
 		<div class="grid gap-5 md:grid-cols-2">
