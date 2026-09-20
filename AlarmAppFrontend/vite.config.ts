@@ -1,7 +1,21 @@
+import adapterAuto from '@sveltejs/adapter-auto';
+import adapterStatic from '@sveltejs/adapter-static';
 import tailwindcss from '@tailwindcss/vite';
-import { defineConfig } from 'vitest/config';
-import adapter from '@sveltejs/adapter-auto';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from 'vitest/config';
+
+/**
+ * Wählt den SvelteKit-Adapter: im Docker-Build ein statisches SPA, sonst adapter-auto.
+ */
+function createAdapter() {
+	if (process.env.ADAPTER === 'static') {
+		return adapterStatic({
+			fallback: 'index.html',
+			strict: false
+		});
+	}
+	return adapterAuto();
+}
 
 export default defineConfig({
 	plugins: [
@@ -13,10 +27,8 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 
-			// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
-			// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
-			// See https://svelte.dev/docs/kit/adapters for more information about adapters.
-			adapter: adapter()
+			// adapter-auto nur lokal; Docker setzt ADAPTER=static für nginx.
+			adapter: createAdapter()
 		})
 	],
 	server: {

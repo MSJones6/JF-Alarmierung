@@ -1,23 +1,23 @@
-# Nur Backend (API, Postgres, Mosquitto, Adminer).
-# Kompletter Stack inkl. Weboberfläche: docker-compose.yml im Projektstamm, siehe STARTEN.md.
+# Kompletter Stack: Weboberfläche, Alarm-API, PostgreSQL, Mosquitto und Adminer.
+# Start: docker compose up --build -d   (oder start.sh / start.bat)
 services:
   mosquitto:
     image: eclipse-mosquitto:2
-    container_name: mosquitto
+    container_name: jf-mosquitto
     restart: unless-stopped
     ports:
-      - "1883:1883"   # MQTT (für Clients, z.B. Smartphones)
-      - "9001:9001"   # WebSocket (optional, für Browser-Clients)
+      - "1883:1883"   # MQTT für die Android-App
+      - "9001:9001"   # MQTT über WebSocket
     volumes:
-      - ./mosquitto/config:/mosquitto/config
-      - ./mosquitto/data:/mosquitto/data
-      - ./mosquitto/log:/mosquitto/log
+      - ./AlarmAppServer/mosquitto/config:/mosquitto/config
+      - ./AlarmAppServer/mosquitto/data:/mosquitto/data
+      - ./AlarmAppServer/mosquitto/log:/mosquitto/log
     networks:
       - msj-jf-alarm-net
 
   postgres:
     image: postgres:16-alpine
-    container_name: alarm-postgres
+    container_name: jf-alarm-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: alarmapp
@@ -35,10 +35,10 @@ services:
 
   adminer:
     image: adminer:4
-    container_name: alarm-adminer
+    container_name: jf-alarm-adminer
     restart: unless-stopped
     ports:
-      - "8081:8080"   # Adminer (Web-UI für die Datenbank)
+      - "8081:8080"   # optionale Datenbank-Oberfläche
     environment:
       ADMINER_DEFAULT_SERVER: postgres
     depends_on:
@@ -49,12 +49,10 @@ services:
 
   alarm-api:
     build:
-      context: ./alarm-api
+      context: ./AlarmAppServer/alarm-api
     image: jf-alarmierung/alarm-api:1.0.0
-    container_name: alarm-api
+    container_name: jf-alarm-api
     restart: unless-stopped
-    ports:
-      - "8080:8080"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/alarmapp
       SPRING_DATASOURCE_USERNAME: alarm
@@ -69,11 +67,25 @@ services:
     networks:
       - msj-jf-alarm-net
 
+  frontend:
+    build:
+      context: ./AlarmAppFrontend
+    image: jf-alarmierung/frontend:1.0.0
+    container_name: jf-alarm-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"       # Weboberfläche: http://localhost
+    depends_on:
+      alarm-api:
+        condition: service_healthy
+    networks:
+      - msj-jf-alarm-net
+
 volumes:
   postgres_data:
 
 # Eigenes Docker-Netzwerk für alle Dienste der JF-Alarmierung.
 networks:
   msj-jf-alarm-net:
-    name: MSJ-JF-Alarm-Net
+    name: jf-alarmierung-net
     driver: bridge
