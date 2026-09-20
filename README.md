@@ -20,11 +20,11 @@ Das Projekt ist Open-Source und lebt von der Community.
 
 ### Wie ihr beitragen könnt:
 
-- **Feature-Vorschläge**: Habt ihr eine Idee für ein neues Feature? 
+- **[Feature-Vorschläge](https://github.com/MSJones6/JF-Alarmierung/issues/new?title=Feature-Vorschlag)**: Habt ihr eine Idee für ein neues Feature? 
   Lasst es uns wissen! Wir sind offen für Anregungen.
-- **Bug-Reports**: Findet ihr einen Bug? Meldet ihn gerne.
-- **Pull-Requests**: Direkte Verbesserungen sind willkommen – Code, Dokumentation, Übersetzungen.
-- **Feedback**: Allgemeines Feedback hilft uns, das Projekt besser zu machen.
+- **[Bug-Reports](https://github.com/MSJones6/JF-Alarmierung/issues/new?title=Bug)**: Findet ihr einen Bug? Meldet ihn gerne.
+- **[Pull-Requests](https://github.com/MSJones6/JF-Alarmierung/compare)**: Direkte Verbesserungen sind willkommen – Code, Dokumentation, Übersetzungen.
+- **[Feedback](https://github.com/MSJones6/JF-Alarmierung/issues/new?title=Feedback)**: Allgemeines Feedback hilft uns, das Projekt besser zu machen.
 
 ### ☕ Unterstützung
 Wenn dir die App gefällt und du die Entwicklung der Jugendfeuerwehr-Alarmierung unterstützen möchtest, freue ich mich über einen Kaffee!
@@ -33,8 +33,8 @@ Wenn dir die App gefällt und du die Entwicklung der Jugendfeuerwehr-Alarmierung
 
 ### Kontakt:
 
-- GitHub Issues für Bug-Reports und Feature-Vorschläge
-- Direkte Kontaktaufnahme bei größeren Ideen oder Fragen
+- [GitHub Issues für Bug-Reports und Feature-Vorschläge](https://github.com/MSJones6/JF-Alarmierung/issues)
+- [Direkte Kontaktaufnahme bei größeren Ideen oder Fragen](https://github.com/MSJones6)
 
 Wir sind gespannt auf eure Vorschläge und bedanken uns für euer Interesse am Projekt!
 
