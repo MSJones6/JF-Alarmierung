@@ -29,7 +29,7 @@ Das Projekt ist Open-Source und lebt von der Community.
 ### ☕ Unterstützung
 Wenn dir die App gefällt und du die Entwicklung der Jugendfeuerwehr-Alarmierung unterstützen möchtest, freue ich mich über einen Kaffee!
 
-[![PayPal](https://img.shields.io/badge/PayPal-Spenden-blue.svg)](https://paypal.me/JFAlarmApp)
+[![Mit PayPal spenden](https://www.paypalobjects.com/de_DE/DE/i/btn/btn_donateCC_LG.gif)](https://paypal.me/JFAlarmApp)
 
 ### Kontakt:
 
