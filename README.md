@@ -125,6 +125,70 @@ docker compose logs -f
 docker compose down
 ```
 
+### MQTT-Benutzer und Topics
+
+Mosquitto lässt niemanden ohne Login zu. **Benutzer und Passwort** stehen in `AlarmAppServer/mosquitto/config/passwordfile.conf` (nur Hashes, keine Klartext-Passwörter). **Welche Topics** ein Benutzer lesen oder schreiben darf, steht in `AlarmAppServer/mosquitto/config/aclfile.conf`.
+
+Das sind MQTT-Zugänge für Broker, Alarm-API und Android-App – nicht für die Weboberfläche.
+
+Mitgelieferte Konten (nur zum Ausprobieren, Passwörter bitte ändern):
+
+| Benutzer | Passwort | Topics |
+|----------|----------|--------|
+| `alarm` | `alarm` | `JF/Alarm` und `JF/Alarm/KB` lesen und schreiben (Alarm-API) |
+| `reader` | `reader` | dieselben Topics nur lesen (Android-App) |
+| `admin` | `admin` | alle Topics lesen und schreiben |
+
+#### 1. Benutzer anlegen oder Passwort setzen
+
+Der Stack muss laufen. Befehl im **Projektstamm** (Passwort in Anführungszeichen, Benutzername ohne Leerzeichen):
+
+```bash
+docker compose exec mosquitto mosquitto_passwd -b /mosquitto/config/passwordfile.conf FEUERWEHR 'SicheresPasswort'
+```
+
+Dabei `FEUERWEHR` durch den gewünschten Namen ersetzen. Existiert der Benutzer schon, wird nur das Passwort neu gesetzt.
+
+Benutzer löschen:
+
+```bash
+docker compose exec mosquitto mosquitto_passwd -D /mosquitto/config/passwordfile.conf FEUERWEHR
+```
+
+**Nicht** `mosquitto_passwd -c` verwenden: das legt eine neue Datei an und löscht alle bisherigen Benutzer.
+
+#### 2. Topics zuweisen
+
+`AlarmAppServer/mosquitto/config/aclfile.conf` in einem Texteditor öffnen. Pro Benutzer ein Block: erst `user`, darunter eine oder mehrere `topic`-Zeilen.
+
+```
+# nur empfangen (Android)
+user FEUERWEHR
+topic read JF/Alarm/KB
+
+# empfangen und senden (Alarm-API / Connection in der Weboberfläche)
+user DISPO
+topic readwrite JF/Alarm/KB
+```
+
+| Recht | Bedeutung |
+|-------|-----------|
+| `read` | nur empfangen (typisch Android) |
+| `write` | nur senden |
+| `readwrite` | beides (typisch die Connection der Alarm-API) |
+
+`#` am Topic-Ende steht für alle Unterthemen, z. B. `JF/Alarm/#`. Der Benutzername in der ACL muss **genau** dem Namen aus Schritt 1 entsprechen.
+
+Die Alarm-API sendet mit dem Benutzer, der in der Weboberfläche unter **Einstellungen → Connection** hinterlegt ist. Die Android-App nutzt Benutzer, Passwort und Topic aus ihren eigenen Einstellungen bzw. dem QR-Code. Beides muss zum Broker und zur ACL passen.
+
+#### 3. Änderungen übernehmen
+
+```bash
+docker compose restart mosquitto
+```
+
+Danach Connection in der Weboberfläche und Zugangsdaten in der Android-App auf den neuen Benutzer umstellen.
+
 ---
 
 ## Alarm-API
